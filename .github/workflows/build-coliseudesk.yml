@@ -1,0 +1,85 @@
+name: Gerar ColiseuDesk.exe (Build Rápido Windows)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      rendezvous_server:
+        description: 'IP ou Domínio da sua VPS (ex: 192.168.1.10 ou remoto.coliseu.com.br)'
+        required: false
+        default: ''
+      rs_pub_key:
+        description: 'Chave Pública gerada na VPS (conteúdo de data/id_ed25519.pub)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Compilar ColiseuDesk Windows (x64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar código do repositório ColiseuDesk
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Injetar Credenciais da VPS (IP e Chave Pública)
+        shell: pwsh
+        env:
+          INPUT_SERVER: ${{ inputs.rendezvous_server }}
+          INPUT_KEY: ${{ inputs.rs_pub_key }}
+          SECRET_SERVER: ${{ secrets.RENDEZVOUS_SERVER }}
+          SECRET_KEY: ${{ secrets.RS_PUB_KEY }}
+        run: |
+          $cfgPath = "config/coliseudesk.json"
+          $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json
+
+          $srv = if ($env:INPUT_SERVER) { $env:INPUT_SERVER } elseif ($env:SECRET_SERVER) { $env:SECRET_SERVER } else { $cfg.server.rendezvous_server }
+          $key = if ($env:INPUT_KEY) { $env:INPUT_KEY } elseif ($env:SECRET_KEY) { $env:SECRET_KEY } else { $cfg.server.rs_pub_key }
+
+          $cfg.server.rendezvous_server = "$srv"
+          $cfg.server.rs_pub_key = "$key"
+
+          $cfg | ConvertTo-Json -Depth 5 | Set-Content $cfgPath -Encoding UTF8
+          Write-Host "VPS Configurada no Build: Servidor=$srv"
+
+      - name: Compilar Executável Único (ColiseuDesk.exe Portátil)
+        shell: pwsh
+        run: |
+          dotnet publish src/ColiseuDesk/ColiseuDesk.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o dist/ColiseuDesk
+
+      - name: Incluir Motor RustDesk Oficial Pré-Vinculado
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist/ColiseuDesk/engine" | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/rustdesk/rustdesk/releases/download/1.3.8/rustdesk-1.3.8-x86_64.exe" `
+            -OutFile "dist/ColiseuDesk/engine/coliseu-engine.exe"
+
+      - name: Empacotar Distribuível (ColiseuDesk-Windows-x64.zip)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist/ColiseuDesk/*" -DestinationPath "dist/ColiseuDesk-Windows-x64.zip" -Force
+
+      - name: Disponibilizar ColiseuDesk para Download nos Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ColiseuDesk-Windows-x64
+          path: |
+            dist/ColiseuDesk/ColiseuDesk.exe
+            dist/ColiseuDesk-Windows-x64.zip
+          retention-days: 30

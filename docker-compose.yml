@@ -1,0 +1,22 @@
+name: coliseudesk-server
+
+services:
+  hbbs:
+    container_name: coliseudesk-hbbs
+    image: rustdesk/rustdesk-server:latest
+    command: hbbs -r ${RELAY_HOST:-127.0.0.1}:21117 -k _
+    volumes:
+      - ./data:/root
+    network_mode: "host"
+    depends_on:
+      - hbbr
+    restart: unless-stopped
+
+  hbbr:
+    container_name: coliseudesk-hbbr
+    image: rustdesk/rustdesk-server:latest
+    command: hbbr -k _
+    volumes:
+      - ./data:/root
+    network_mode: "host"
+    restart: unless-stopped

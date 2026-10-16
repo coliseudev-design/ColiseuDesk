@@ -1,0 +1,16 @@
+# Build outputs
+bin/
+obj/
+dist/
+out/
+
+# Dados e chaves privadas geradas localmente pela VPS
+data/
+.env
+
+# Arquivos temporários do Visual Studio / Windows
+.vs/
+*.user
+*.suo
+Thumbs.db
+.DS_Store

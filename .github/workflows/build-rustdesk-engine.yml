@@ -1,0 +1,52 @@
+name: Compilar Motor RustDesk Nativos do Zero (Full Source Build)
+
+on:
+  workflow_dispatch:
+    inputs:
+      rendezvous_server:
+        description: 'IP ou Domínio da sua VPS (RENDEZVOUS_SERVER)'
+        required: true
+      rs_pub_key:
+        description: 'Chave Pública da VPS (RS_PUB_KEY - id_ed25519.pub)'
+        required: true
+      rustdesk_tag:
+        description: 'Versão base do motor RustDesk'
+        required: false
+        default: '1.3.8'
+
+permissions:
+  contents: write
+
+jobs:
+  build-custom-engine:
+    name: Compilar Motor Rust + Flutter Customizado (ColiseuDesk)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout ColiseuDesk
+        uses: actions/checkout@v4
+        with:
+          path: coliseudesk
+
+      - name: Clonar Código-Fonte Oficial do Motor RustDesk
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch ${{ inputs.rustdesk_tag }} https://github.com/rustdesk/rustdesk.git rustdesk-src
+
+      - name: Aplicar Identidade Visual Coliseu Sistemas e Chaves da VPS
+        shell: pwsh
+        env:
+          RENDEZVOUS_SERVER: ${{ inputs.rendezvous_server }}
+          RS_PUB_KEY: ${{ inputs.rs_pub_key }}
+        run: |
+          python coliseudesk/scripts/apply-coliseu-branding.py rustdesk-src
+
+      - name: Publicar Código-Fonte Customizado Preparado nos Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ColiseuDesk-Patched-RustDesk-Config
+          path: |
+            rustdesk-src/libs/hbb_common/src/config.rs
+            rustdesk-src/flutter/lib/common.dart
+            rustdesk-src/res/icon.ico
+          retention-days: 14

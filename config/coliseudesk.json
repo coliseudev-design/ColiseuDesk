@@ -1,0 +1,34 @@
+{
+  "app_name": "ColiseuDesk",
+  "company_name": "Coliseu Sistemas",
+  "app_description": "Acesso Remoto Corporativo - Coliseu Sistemas",
+  "version": "1.0.0",
+  "branding": {
+    "primary_color": "#0072BF",
+    "secondary_color": "#0094D2",
+    "dark_charcoal": "#4C4C4C",
+    "surface_light": "#F4F7FA",
+    "toolbar_style": "anydesk_compact",
+    "logo_path": "assets/logo-coliseu.png",
+    "icon_png_path": "assets/icon.png",
+    "icon_ico_path": "assets/icon.ico",
+    "icon_svg_path": "assets/icon.svg"
+  },
+  "server": {
+    "rendezvous_server": "",
+    "rs_pub_key": "",
+    "api_server": ""
+  },
+  "features": {
+    "enable_audio": true,
+    "enable_file_transfer": true,
+    "enable_clipboard_sync": true,
+    "enable_chat": true,
+    "enable_whiteboard": true,
+    "enable_unattended_access": true,
+    "enable_multi_monitor_bar": true,
+    "enable_ctrl_alt_del": true,
+    "enable_session_recording": true,
+    "lock_server_config": true
+  }
+}

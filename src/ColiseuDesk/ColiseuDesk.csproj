@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ColiseuDesk</AssemblyName>
+    <RootNamespace>ColiseuDesk</RootNamespace>
+    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Company>Coliseu Sistemas</Company>
+    <Product>ColiseuDesk - Acesso Remoto</Product>
+    <Description>ColiseuDesk - Plataforma de Suporte e Acesso Remoto da Coliseu Sistemas (Motor RustDesk)</Description>
+    <Copyright>Copyright © 2026 Coliseu Sistemas</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\logo-coliseu.png" Link="Assets\logo-coliseu.png" />
+    <Resource Include="..\..\assets\icon.png" Link="Assets\icon.png" />
+    <Resource Include="..\..\assets\icon.ico" Link="Assets\icon.ico" />
+    <Content Include="..\..\config\coliseudesk.json" Link="coliseudesk.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
