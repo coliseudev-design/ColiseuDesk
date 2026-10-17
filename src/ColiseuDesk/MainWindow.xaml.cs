@@ -1,8 +1,10 @@
 using System;
-using System.Security.Cryptography;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using ColiseuDesk.Services;
 
 namespace ColiseuDesk
@@ -10,6 +12,7 @@ namespace ColiseuDesk
     public partial class MainWindow : Window
     {
         private readonly RustDeskEngineService _engineService = new RustDeskEngineService();
+        private readonly DispatcherTimer _statusTimer = new DispatcherTimer();
 
         public MainWindow()
         {
@@ -20,17 +23,43 @@ namespace ColiseuDesk
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             RefreshClientsList();
-            RegeneratePassword();
-            UpdateStatusBanner();
+            LocalIdText.Text = "Sincronizando...";
+            TempPasswordText.Text = "......";
+            TopVpsBadge.Text = "Conectando à Rede Coliseu Sistemas...";
 
-            var localId = await _engineService.GetLocalMachineIdAsync();
-            LocalIdText.Text = localId;
-
-            // Garante que o motor já seja preparado em segundo plano de forma transparente
-            _ = _engineService.EnsureEngineInstalledAsync(msg =>
+            await _engineService.InitializeAndStartServerAsync(msg =>
             {
                 Dispatcher.Invoke(() => StatusTextBlock.Text = msg);
             });
+
+            await SyncLiveEngineStatusAsync();
+
+            _statusTimer.Interval = TimeSpan.FromSeconds(3);
+            _statusTimer.Tick += async (s, args) => await SyncLiveEngineStatusAsync();
+            _statusTimer.Start();
+        }
+
+        private async Task SyncLiveEngineStatusAsync()
+        {
+            var status = await Task.Run(() => _engineService.QueryLiveStatusFromPipe());
+            if (!string.IsNullOrEmpty(status.Id))
+            {
+                LocalIdText.Text = status.Id;
+            }
+            if (!string.IsNullOrEmpty(status.TemporaryPassword))
+            {
+                TempPasswordText.Text = status.TemporaryPassword;
+            }
+
+            if (status.IsOnline)
+            {
+                TopVpsBadge.Text = "Rede Coliseu Sistemas Online • Pronto para Receber ou Dar Suporte";
+                StatusDot.Fill = new SolidColorBrush(Color.FromRgb(27, 135, 63));
+                if (StatusTextBlock.Text.StartsWith("Conectando") || StatusTextBlock.Text.StartsWith("Preparando") || StatusTextBlock.Text.StartsWith("Baixando"))
+                {
+                    StatusTextBlock.Text = "Pronto para conexões (Registrado na Rede Coliseu Sistemas)";
+                }
+            }
         }
 
         private void RefreshClientsList()
@@ -42,38 +71,20 @@ namespace ColiseuDesk
                 : Visibility.Collapsed;
         }
 
-        private void UpdateStatusBanner()
-        {
-            TopVpsBadge.Text = "Rede Coliseu Sistemas Online • Conexão Criptografada";
-            StatusTextBlock.Text = "Pronto para conexões (Rede Coliseu Sistemas Online)";
-        }
-
-        private void RegeneratePassword()
-        {
-            const string chars = "abcdefghjkmnpqrstuvwxyz23456789";
-            char[] buffer = new char[6];
-            byte[] randomBytes = new byte[6];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomBytes);
-            }
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                buffer[i] = chars[randomBytes[i] % chars.Length];
-            }
-            TempPasswordText.Text = new string(buffer);
-        }
-
         private void CopyLocalId_Click(object sender, RoutedEventArgs e)
         {
             Clipboard.SetText(LocalIdText.Text);
             StatusTextBlock.Text = string.Format("ID {0} copiado para a área de transferência!", LocalIdText.Text);
         }
 
-        private void RegeneratePassword_Click(object sender, RoutedEventArgs e)
+        private async void RegeneratePassword_Click(object sender, RoutedEventArgs e)
         {
-            RegeneratePassword();
-            StatusTextBlock.Text = "Nova senha temporária de sessão gerada.";
+            var newPwd = await Task.Run(() => _engineService.RegenerateTemporaryPasswordInEngine());
+            if (!string.IsNullOrEmpty(newPwd))
+            {
+                TempPasswordText.Text = newPwd;
+                StatusTextBlock.Text = "Nova senha temporária gerada no motor de acesso.";
+            }
         }
 
         private void CopyPassword_Click(object sender, RoutedEventArgs e)
@@ -95,11 +106,13 @@ namespace ColiseuDesk
                 return;
             }
 
-            _engineService.SetUnattendedPassword(pwd);
-            StatusTextBlock.Text = "Acesso permanente (Senha Fixa) ativado neste computador.";
+            bool ok = _engineService.SetUnattendedPassword(pwd);
+            StatusTextBlock.Text = ok
+                ? "Acesso permanente (Senha Fixa) ativado neste computador!"
+                : "Senha fixa salva nas configurações.";
 
             MessageBox.Show(
-                "Senha fixa configurada com sucesso!\nEste computador agora permite acesso rápido autorizado.",
+                "Senha fixa configurada com sucesso!\nAgora você pode conectar neste computador usando essa senha fixa.",
                 "ColiseuDesk - Coliseu Sistemas",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -119,26 +132,24 @@ namespace ColiseuDesk
             ToolbarRemoteIdBox.Text = formatted;
             MainRemoteIdBox.Text = formatted;
 
-            // Registra automaticamente nas conexões recentes deste computador
             _engineService.AddOrUpdateRecentClient(formatted);
             RefreshClientsList();
 
-            StatusTextBlock.Text = string.Format("Conectando ao computador {0}...", formatted);
+            StatusTextBlock.Text = string.Format("Iniciando conexão com {0}...", formatted);
 
-            var enginePath = _engineService.FindEngineExecutable();
-            if (enginePath == null)
+            if (_engineService.FindExtractedRuntimeExecutable() == null)
             {
-                enginePath = await _engineService.EnsureEngineInstalledAsync(msg =>
+                await _engineService.InitializeAndStartServerAsync(msg =>
                     Dispatcher.Invoke(() => StatusTextBlock.Text = msg));
             }
 
             if (_engineService.LaunchRemoteConnection(formatted, mode))
             {
-                StatusTextBlock.Text = string.Format("Sessão remota ativa com {0}.", formatted);
+                StatusTextBlock.Text = string.Format("Sessão remota iniciada com {0}.", formatted);
             }
             else
             {
-                StatusTextBlock.Text = "Preparando motor de conexão remota... Tente novamente em alguns segundos.";
+                StatusTextBlock.Text = "Aguarde a conclusão da inicialização do motor e tente novamente.";
             }
         }
 
@@ -238,7 +249,6 @@ namespace ColiseuDesk
         private void SaveVpsConfig_Click(object sender, RoutedEventArgs e)
         {
             _engineService.SaveSettings(VpsHostInput.Text, VpsKeyInput.Text);
-            UpdateStatusBanner();
             VpsModalOverlay.Visibility = Visibility.Collapsed;
         }
     }
