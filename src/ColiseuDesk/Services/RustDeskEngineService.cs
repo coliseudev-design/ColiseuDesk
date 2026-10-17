@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -26,6 +27,9 @@ namespace ColiseuDesk.Services
         public string PublicKey { get; set; } = "1p8++8VM24nZtyCrsIlylHxG4hRS5ZVRf3bkDmHaYg8=";
         public string ApiServer { get; set; } = "";
         public string UnattendedPassword { get; set; } = "";
+        public string ImageQuality { get; set; } = "balanced";
+        public bool EnableAudio { get; set; } = true;
+        public bool EnableClipboard { get; set; } = true;
         public List<SavedClientItem> SavedClients { get; set; } = new List<SavedClientItem>();
     }
 
@@ -38,6 +42,18 @@ namespace ColiseuDesk.Services
 
     public class RustDeskEngineService
     {
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam);
+
+        private const int SW_RESTORE = 9;
+        private const uint WM_SETTEXT = 0x000C;
+
         private readonly string _appDataDir;
         private readonly string _settingsFile;
         private readonly string _clientsFile;
@@ -86,6 +102,9 @@ namespace ColiseuDesk.Services
                             if (k == "host" && !string.IsNullOrEmpty(v)) Settings.RendezvousServer = v;
                             if (k == "key" && !string.IsNullOrEmpty(v)) Settings.PublicKey = v;
                             if (k == "api" && !string.IsNullOrEmpty(v)) Settings.ApiServer = v;
+                            if (k == "quality" && !string.IsNullOrEmpty(v)) Settings.ImageQuality = v;
+                            if (k == "audio") Settings.EnableAudio = v != "0";
+                            if (k == "clipboard") Settings.EnableClipboard = v != "0";
                         }
                     }
                 }
@@ -129,17 +148,27 @@ namespace ColiseuDesk.Services
             ApplyVpsConfigToEngine();
         }
 
-        public void AddOrUpdateRecentClient(string formattedId)
+        public void AddOrUpdateRecentClient(string formattedId, string? customName = null, string? customCompany = null)
         {
+            var existing = Settings.SavedClients.Find(c => c.Id == formattedId);
+            string name = customName ?? (existing != null ? existing.Name : "Estação Cliente");
+            string company = customCompany ?? (existing != null ? existing.Company : "Cliente Coliseu Sistemas");
+
             Settings.SavedClients.RemoveAll(c => c.Id == formattedId);
             Settings.SavedClients.Insert(0, new SavedClientItem
             {
                 Id = formattedId,
-                Name = "Computador Remoto",
-                Company = "Atendimento Coliseu",
+                Name = name,
+                Company = company,
                 LastConnected = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
                 IsOnline = true
             });
+            PersistSettings();
+        }
+
+        public void RemoveClient(string formattedId)
+        {
+            Settings.SavedClients.RemoveAll(c => c.Id == formattedId);
             PersistSettings();
         }
 
@@ -151,6 +180,9 @@ namespace ColiseuDesk.Services
                 sb.AppendLine("host=" + Settings.RendezvousServer);
                 sb.AppendLine("key=" + Settings.PublicKey);
                 sb.AppendLine("api=" + Settings.ApiServer);
+                sb.AppendLine("quality=" + Settings.ImageQuality);
+                sb.AppendLine("audio=" + (Settings.EnableAudio ? "1" : "0"));
+                sb.AppendLine("clipboard=" + (Settings.EnableClipboard ? "1" : "0"));
                 File.WriteAllText(_settingsFile, sb.ToString(), Encoding.UTF8);
 
                 var cb = new StringBuilder();
@@ -167,8 +199,8 @@ namespace ColiseuDesk.Services
         }
 
         /// <summary>
-        /// Grava de forma 100% invisível as credenciais do servidor Coliseu Sistemas
-        /// no arquivo RustDesk2.toml do motor.
+        /// Grava as credenciais do servidor Coliseu Sistemas e as preferências de sessão
+        /// nos arquivos de configuração do motor.
         /// </summary>
         public void ApplyVpsConfigToEngine()
         {
@@ -197,11 +229,24 @@ namespace ColiseuDesk.Services
                 if (!string.IsNullOrEmpty(api))
                     sb.AppendLine(string.Format("api-server = '{0}'", api));
                 sb.AppendLine("direct-server = 'Y'");
-                sb.AppendLine("enable-audio = 'Y'");
+                sb.AppendLine(string.Format("enable-audio = '{0}'", Settings.EnableAudio ? "Y" : "N"));
                 sb.AppendLine("enable-file-transfer = 'Y'");
-                sb.AppendLine("enable-clipboard = 'Y'");
+                sb.AppendLine(string.Format("enable-clipboard = '{0}'", Settings.EnableClipboard ? "Y" : "N"));
 
                 File.WriteAllText(tomlPath, sb.ToString(), Encoding.UTF8);
+
+                // Atualiza peers.toml para refletir qualidade de vídeo, áudio, área de transferência e barra sempre visível
+                var peersTomlPath = Path.Combine(_rustDeskConfigDir, "peers.toml");
+                if (File.Exists(peersTomlPath))
+                {
+                    var pContent = File.ReadAllText(peersTomlPath, Encoding.UTF8);
+                    pContent = Regex.Replace(pContent, @"image_quality\s*=\s*'[^']*'", string.Format("image_quality = '{0}'", Settings.ImageQuality));
+                    pContent = Regex.Replace(pContent, @"disable_audio\s*=\s*(true|false)", string.Format("disable_audio = {0}", Settings.EnableAudio ? "false" : "true"));
+                    pContent = Regex.Replace(pContent, @"disable_clipboard\s*=\s*(true|false)", string.Format("disable_clipboard = {0}", Settings.EnableClipboard ? "false" : "true"));
+                    pContent = Regex.Replace(pContent, @"collapse_toolbar\s*=\s*'[^']*'", "collapse_toolbar = 'N'");
+                    File.WriteAllText(peersTomlPath, pContent, Encoding.UTF8);
+                }
+
                 ApplyVisualBrandingToExtractedEngine();
             }
             catch
@@ -211,14 +256,16 @@ namespace ColiseuDesk.Services
         }
 
         /// <summary>
-        /// Força o tema claro (branco predominante, sem telas dark) em todas as janelas de conexão
-        /// e substitui o icon.svg interno pelo emblema com fundo branco da Coliseu Sistemas.
+        /// 1. Força o tema claro (branco predominante) em RustDesk_local.toml
+        /// 2. Injeta o icon.svg com fundo branco da Coliseu Sistemas
+        /// 3. Substitui strings em português ("Verifique a senha do RustDesk" -> "Digite a senha do ColiseuDesk")
+        ///    e desativa o aviso rosa de nova versão em librustdesk.dll!
         /// </summary>
         public void ApplyVisualBrandingToExtractedEngine()
         {
             try
             {
-                // 1. Garante que RustDesk_local.toml tenha theme = 'light' (Zero telas Dark!)
+                // 1. Garante que RustDesk_local.toml tenha theme = 'light'
                 Directory.CreateDirectory(_rustDeskConfigDir);
                 var localTomlPath = Path.Combine(_rustDeskConfigDir, "RustDesk_local.toml");
                 if (File.Exists(localTomlPath))
@@ -250,6 +297,9 @@ namespace ColiseuDesk.Services
                     const string coliseuSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 256 256""><rect width=""256"" height=""256"" rx=""36"" fill=""#FFFFFF""/><path d=""M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z"" fill=""#0072BF""/><path d=""M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z"" fill=""#0072BF""/><path d=""M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z"" fill=""#0072BF""/><path d=""M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z"" fill=""#0094D2""/><path d=""M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z"" fill=""#0094D2""/></svg>";
                     File.WriteAllText(flutterIconSvg, coliseuSvg, Encoding.UTF8);
                 }
+
+                // 3. Patch binário seguro (mesmo tamanho exato de bytes) em librustdesk.dll quando não estiver bloqueado
+                PatchLibRustDeskStrings();
             }
             catch
             {
@@ -257,10 +307,87 @@ namespace ColiseuDesk.Services
             }
         }
 
-        /// <summary>
-        /// Localiza o binário já extraído do motor (LocalAppData\rustdesk\rustdesk.exe)
-        /// ou o instalador portátil (AppData\Roaming\ColiseuDesk\engine\coliseu-engine.exe).
-        /// </summary>
+        public void PatchLibRustDeskStrings()
+        {
+            try
+            {
+                var dllPath = Path.Combine(_extractedRustDeskDir, "librustdesk.dll");
+                if (!File.Exists(dllPath))
+                    return;
+
+                byte[] bytes = File.ReadAllBytes(dllPath);
+                bool modified = false;
+
+                // Substituições de tamanho de bytes idêntico em UTF-8:
+                // 1) "Verifique a senha do RustDesk" (29 bytes) -> "Digite a senha do ColiseuDesk" (29 bytes)
+                modified |= ReplaceExactBytes(
+                    bytes,
+                    Encoding.UTF8.GetBytes("Verifique a senha do RustDesk"),
+                    Encoding.UTF8.GetBytes("Digite a senha do ColiseuDesk"));
+
+                // 2) "Conectando à rede do RustDesk..." (33 bytes) -> "Conectando à rede ColiseuDesk..." (33 bytes)
+                modified |= ReplaceExactBytes(
+                    bytes,
+                    Encoding.UTF8.GetBytes("Conectando à rede do RustDesk..."),
+                    Encoding.UTF8.GetBytes("Conectando à rede ColiseuDesk..."));
+
+                // 3) Desativa aviso rosa de nova versão ("https://api.rustdesk.com/version/latest" - 39 bytes)
+                modified |= ReplaceExactBytes(
+                    bytes,
+                    Encoding.UTF8.GetBytes("https://api.rustdesk.com/version/latest"),
+                    Encoding.UTF8.GetBytes("http://127.0.0.1:9/coliseu/ver/latest  "));
+
+                if (modified)
+                {
+                    try
+                    {
+                        File.WriteAllBytes(dllPath, bytes);
+                    }
+                    catch (IOException)
+                    {
+                        // Se a DLL ainda não tinha sido atualizada e está em uso por um processo anterior,
+                        // reiniciamos brevemente o processo para aplicar a identidade visual da Coliseu Sistemas.
+                        foreach (var proc in Process.GetProcessesByName("rustdesk"))
+                        {
+                            try { proc.Kill(); proc.WaitForExit(1500); } catch { }
+                        }
+                        Thread.Sleep(300);
+                        File.WriteAllBytes(dllPath, bytes);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignora caso não tenha permissão de escrita no diretório
+            }
+        }
+
+        private static bool ReplaceExactBytes(byte[] buffer, byte[] pattern, byte[] replacement)
+        {
+            if (pattern.Length != replacement.Length || pattern.Length == 0)
+                return false;
+
+            bool changed = false;
+            for (int i = 0; i <= buffer.Length - pattern.Length; i++)
+            {
+                bool match = true;
+                for (int j = 0; j < pattern.Length; j++)
+                {
+                    if (buffer[i + j] != pattern[j])
+                    {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match)
+                {
+                    Buffer.BlockCopy(replacement, 0, buffer, i, replacement.Length);
+                    changed = true;
+                }
+            }
+            return changed;
+        }
+
         public string? FindExtractedRuntimeExecutable()
         {
             var extracted = Path.Combine(_extractedRustDeskDir, "rustdesk.exe");
@@ -300,10 +427,6 @@ namespace ColiseuDesk.Services
             return null;
         }
 
-        /// <summary>
-        /// Baixa o motor (se necessário), extrai os componentes para LocalAppData\rustdesk
-        /// e inicia o servidor em segundo plano (--server) conectado à VPS 2.24.82.19!
-        /// </summary>
         public Task<bool> InitializeAndStartServerAsync(Action<string>? onProgress = null)
         {
             return Task.Run(() =>
@@ -312,14 +435,13 @@ namespace ColiseuDesk.Services
                 {
                     ApplyVpsConfigToEngine();
 
-                    // 1. Se já existe pipe ativo do servidor RustDesk, apenas garante que está conectado à VPS
                     var live = QueryLiveStatusFromPipe();
                     if (!string.IsNullOrEmpty(live.Id))
                     {
+                        SendIpcQuery("{\"t\":\"Theme\",\"c\":\"light\"}");
                         return true;
                     }
 
-                    // 2. Garante que o pacote do motor existe
                     var pkgExe = FindEnginePackageExecutable();
                     if (pkgExe == null)
                     {
@@ -340,7 +462,6 @@ namespace ColiseuDesk.Services
                         pkgExe = targetExe;
                     }
 
-                    // 3. Se ainda não extraiu para LocalAppData\rustdesk\rustdesk.exe, executa --get-id uma vez para extrair silenciosamente
                     var extractedExe = FindExtractedRuntimeExecutable();
                     if (extractedExe == null && pkgExe != null)
                     {
@@ -368,10 +489,10 @@ namespace ColiseuDesk.Services
                     if (extractedExe == null)
                         return false;
 
-                    // 4. Inicia o daemon --server em segundo plano para registrar o ID na VPS (2.24.82.19) e aceitar conexões!
-                    onProgress?.Invoke("Conectando e registrando computador na Rede Coliseu Sistemas...");
-                    ApplyVpsConfigToEngine();
+                    // Aplica o branding em librustdesk.dll e icon.svg ANTES de subir o --server!
+                    ApplyVisualBrandingToExtractedEngine();
 
+                    onProgress?.Invoke("Conectando e registrando computador na Rede Coliseu Sistemas...");
                     var srvPsi = new ProcessStartInfo
                     {
                         FileName = extractedExe,
@@ -383,13 +504,13 @@ namespace ColiseuDesk.Services
                     };
                     _serverProcess = Process.Start(srvPsi);
 
-                    // Aguarda o pipe \\.\pipe\RustDesk\query ficar pronto e registrar na VPS (até 8 segundos)
                     for (int i = 0; i < 16; i++)
                     {
                         Thread.Sleep(500);
                         var status = QueryLiveStatusFromPipe();
                         if (!string.IsNullOrEmpty(status.Id) && !string.IsNullOrEmpty(status.TemporaryPassword))
                         {
+                            SendIpcQuery("{\"t\":\"Theme\",\"c\":\"light\"}");
                             if (status.IsOnline)
                                 break;
                         }
@@ -404,10 +525,6 @@ namespace ColiseuDesk.Services
             });
         }
 
-        /// <summary>
-        /// Comunica-se diretamente com o Named Pipe \\.\pipe\RustDesk\query do motor em execução
-        /// usando o protocolo BytesCodec + JSON nativo do RustDesk.
-        /// </summary>
         public string? SendIpcQuery(string jsonRequest, int timeoutMs = 1200)
         {
             try
@@ -471,9 +588,6 @@ namespace ColiseuDesk.Services
             }
         }
 
-        /// <summary>
-        /// Consulta em tempo real o ID verdadeiro, a Senha Temporária verdadeira e o Status Online na VPS!
-        /// </summary>
         public EngineLiveStatus QueryLiveStatusFromPipe()
         {
             var result = new EngineLiveStatus();
@@ -501,7 +615,6 @@ namespace ColiseuDesk.Services
             var onlineResp = SendIpcQuery("{\"t\":\"OnlineStatus\",\"c\":null}");
             if (!string.IsNullOrEmpty(onlineResp))
             {
-                // Formato: {"t":"OnlineStatus","c":[196785,true]} onde o primeiro número > 0 indica conectado ao hbbs
                 var m = Regex.Match(onlineResp, "\\[\\s*(\\d+)\\s*,\\s*(true|false)\\s*\\]");
                 if (m.Success)
                 {
@@ -513,9 +626,6 @@ namespace ColiseuDesk.Services
             return result;
         }
 
-        /// <summary>
-        /// Solicita ao motor RustDesk em execução que gere uma nova senha temporária real.
-        /// </summary>
         public string? RegenerateTemporaryPasswordInEngine()
         {
             SendIpcQuery("{\"t\":\"Config\",\"c\":[\"temporary-password\",\"\"]}");
@@ -524,9 +634,6 @@ namespace ColiseuDesk.Services
             return string.IsNullOrEmpty(status.TemporaryPassword) ? null : status.TemporaryPassword;
         }
 
-        /// <summary>
-        /// Define a Senha Fixa (Acesso Permanente) diretamente no daemon RustDesk em execução via IPC.
-        /// </summary>
         public bool SetUnattendedPassword(string newPassword)
         {
             Settings.UnattendedPassword = newPassword;
@@ -543,6 +650,86 @@ namespace ColiseuDesk.Services
             if (digits.Length == 9)
                 return string.Format("{0} {1} {2}", digits.Substring(0, 3), digits.Substring(3, 3), digits.Substring(6, 3));
             return digits;
+        }
+
+        /// <summary>
+        /// Verifica se já existe uma janela de sessão remota aberta e a traz para frente
+        /// em vez de abrir processos duplicados sem necessidade.
+        /// </summary>
+        public bool FocusExistingSessionWindow()
+        {
+            try
+            {
+                BrandOpenSessionWindows();
+                foreach (var proc in Process.GetProcessesByName("rustdesk"))
+                {
+                    if (proc.MainWindowHandle != IntPtr.Zero)
+                    {
+                        ShowWindow(proc.MainWindowHandle, SW_RESTORE);
+                        SetForegroundWindow(proc.MainWindowHandle);
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignora
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Renomeia automaticamente o título de janelas de sessão abertas para ColiseuDesk - Coliseu Sistemas.
+        /// </summary>
+        public int BrandOpenSessionWindows()
+        {
+            int count = 0;
+            try
+            {
+                foreach (var proc in Process.GetProcessesByName("rustdesk"))
+                {
+                    if (proc.MainWindowHandle != IntPtr.Zero)
+                    {
+                        count++;
+                        var title = proc.MainWindowTitle ?? "";
+                        if (title.IndexOf("RustDesk", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            var newTitle = title.Replace("RustDesk", "ColiseuDesk — Coliseu Sistemas");
+                            SendMessage(proc.MainWindowHandle, WM_SETTEXT, IntPtr.Zero, newTitle);
+                        }
+                        else if (string.IsNullOrWhiteSpace(title))
+                        {
+                            SendMessage(proc.MainWindowHandle, WM_SETTEXT, IntPtr.Zero, "ColiseuDesk — Sessão Remota (Coliseu Sistemas)");
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignora
+            }
+            return count;
+        }
+
+        public void OpenRecordingsFolder()
+        {
+            try
+            {
+                var recDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", "RustDesk");
+                if (!Directory.Exists(recDir))
+                    Directory.CreateDirectory(recDir);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = string.Format("\"{0}\"", recDir),
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // Ignora
+            }
         }
 
         public bool LaunchRemoteConnection(string remoteId, string mode = "--connect")
@@ -565,6 +752,16 @@ namespace ColiseuDesk.Services
                     WorkingDirectory = Path.GetDirectoryName(engine) ?? _extractedRustDeskDir,
                     UseShellExecute = true
                 });
+
+                Task.Run(async () =>
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        await Task.Delay(500);
+                        BrandOpenSessionWindows();
+                    }
+                });
+
                 return true;
             }
             catch

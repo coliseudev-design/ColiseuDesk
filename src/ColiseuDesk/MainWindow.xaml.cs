@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -26,6 +27,8 @@ namespace ColiseuDesk
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             RefreshClientsList();
+            UpdateToolbarToggleButtonsUI();
+
             LocalIdText.Text = "Sincronizando...";
             TempPasswordText.Text = "......";
             TopVpsBadge.Text = "Conectando à Rede Coliseu Sistemas...";
@@ -37,14 +40,19 @@ namespace ColiseuDesk
 
             await SyncLiveEngineStatusAsync();
 
-            _statusTimer.Interval = TimeSpan.FromSeconds(3);
+            _statusTimer.Interval = TimeSpan.FromSeconds(2);
             _statusTimer.Tick += async (s, args) => await SyncLiveEngineStatusAsync();
             _statusTimer.Start();
         }
 
         private async Task SyncLiveEngineStatusAsync()
         {
-            var status = await Task.Run(() => _engineService.QueryLiveStatusFromPipe());
+            var status = await Task.Run(() =>
+            {
+                _engineService.BrandOpenSessionWindows();
+                return _engineService.QueryLiveStatusFromPipe();
+            });
+
             if (!string.IsNullOrEmpty(status.Id))
             {
                 LocalIdText.Text = status.Id;
@@ -65,6 +73,37 @@ namespace ColiseuDesk
             }
         }
 
+        private void UpdateToolbarToggleButtonsUI()
+        {
+            // Qualidade de Imagem
+            string qLabel;
+            switch (_engineService.Settings.ImageQuality)
+            {
+                case "balanced":
+                    qLabel = "🎨 Imagem: Balanceada";
+                    break;
+                case "low":
+                    qLabel = "🎨 Imagem: Rápida";
+                    break;
+                default:
+                    qLabel = "🎨 Imagem: Alta";
+                    break;
+            }
+            BtnQualityToggle.Content = qLabel;
+
+            // Som Remoto
+            BtnAudioToggle.Content = _engineService.Settings.EnableAudio ? "🔊 Som: Ativo" : "🔇 Som: Mudo";
+            BtnAudioToggle.Foreground = new SolidColorBrush(_engineService.Settings.EnableAudio
+                ? Color.FromRgb(51, 51, 51)
+                : Color.FromRgb(150, 150, 150));
+
+            // Área de Transferência (Ctrl+C / Ctrl+V)
+            BtnClipboardToggle.Content = _engineService.Settings.EnableClipboard ? "📋 Ctrl+C/V: Ativo" : "📋 Ctrl+C/V: Inativo";
+            BtnClipboardToggle.Foreground = new SolidColorBrush(_engineService.Settings.EnableClipboard
+                ? Color.FromRgb(51, 51, 51)
+                : Color.FromRgb(150, 150, 150));
+        }
+
         private void RefreshClientsList()
         {
             ClientsListBox.ItemsSource = null;
@@ -74,10 +113,19 @@ namespace ColiseuDesk
                 : Visibility.Collapsed;
         }
 
-        private void CopyLocalId_Click(object sender, RoutedEventArgs e)
+        private async void CopyLocalId_Click(object sender, RoutedEventArgs e)
         {
+            if (string.IsNullOrWhiteSpace(LocalIdText.Text) || LocalIdText.Text.Contains("Sincronizando"))
+            {
+                StatusTextBlock.Text = "Aguarde a sincronização do seu ID antes de copiar.";
+                return;
+            }
+
             Clipboard.SetText(LocalIdText.Text);
             StatusTextBlock.Text = string.Format("ID {0} copiado para a área de transferência!", LocalIdText.Text);
+            BtnCopyId.Content = "✔ Copiado!";
+            await Task.Delay(1800);
+            BtnCopyId.Content = "📋 Copiar";
         }
 
         private async void RegeneratePassword_Click(object sender, RoutedEventArgs e)
@@ -90,10 +138,19 @@ namespace ColiseuDesk
             }
         }
 
-        private void CopyPassword_Click(object sender, RoutedEventArgs e)
+        private async void CopyPassword_Click(object sender, RoutedEventArgs e)
         {
+            if (string.IsNullOrWhiteSpace(TempPasswordText.Text) || TempPasswordText.Text.Contains("."))
+            {
+                StatusTextBlock.Text = "Aguarde a geração da senha temporária antes de copiar.";
+                return;
+            }
+
             Clipboard.SetText(TempPasswordText.Text);
             StatusTextBlock.Text = "Senha temporária copiada para a área de transferência!";
+            BtnCopyPwd.Content = "✔ Copiado!";
+            await Task.Delay(1800);
+            BtnCopyPwd.Content = "Copiar";
         }
 
         private void SaveFixedPassword_Click(object sender, RoutedEventArgs e)
@@ -141,7 +198,7 @@ namespace ColiseuDesk
             _engineService.AddOrUpdateRecentClient(formatted);
             RefreshClientsList();
 
-            StatusTextBlock.Text = string.Format("Iniciando conexão simultânea com {0} ({1} sessão(ões) ativa(s))...", formatted, _openSessionTabs.Count);
+            StatusTextBlock.Text = string.Format("Iniciando conexão com {0} ({1} sessão(ões) na barra)...", formatted, _openSessionTabs.Count);
 
             if (_engineService.FindExtractedRuntimeExecutable() == null)
             {
@@ -151,7 +208,7 @@ namespace ColiseuDesk
 
             if (_engineService.LaunchRemoteConnection(formatted, mode))
             {
-                StatusTextBlock.Text = string.Format("Sessão remota iniciada com {0} ({1} aba(s) aberta(s)).", formatted, _openSessionTabs.Count);
+                StatusTextBlock.Text = string.Format("Sessão remota aberta para {0}. Os controles de Monitor 1/2 ficam no topo da janela de vídeo.", formatted);
             }
             else
             {
@@ -166,7 +223,16 @@ namespace ColiseuDesk
             {
                 ToolbarRemoteIdBox.Text = id;
                 MainRemoteIdBox.Text = id;
-                InitiateConnection(id, "--connect");
+
+                // Se já houver uma janela de sessão aberta, foca nela em vez de abrir outra conexão repetida
+                if (_engineService.FocusExistingSessionWindow())
+                {
+                    StatusTextBlock.Text = string.Format("Janela da sessão ({0}) trazida para frente.", id);
+                }
+                else
+                {
+                    InitiateConnection(id, "--connect");
+                }
             }
         }
 
@@ -177,6 +243,73 @@ namespace ColiseuDesk
             {
                 _openSessionTabs.Remove(id);
             }
+        }
+
+        private void FocusSessionWindow_Click(object sender, RoutedEventArgs e)
+        {
+            if (_engineService.FocusExistingSessionWindow())
+            {
+                StatusTextBlock.Text = "Janela da sessão ativa focada. Use os ícones no topo da janela de vídeo para alternar entre Monitor 1 e 2.";
+            }
+            else
+            {
+                StatusTextBlock.Text = "Nenhuma janela de sessão remota aberta no momento. Conecte-se a um ID primeiro.";
+                MessageBox.Show(
+                    "Nenhuma sessão remota está aberta no momento.\n\n" +
+                    "Quando você estiver conectado a um cliente, a barra superior dentro da janela de vídeo exibirá automaticamente os botões [1] e [2] para alternar entre os monitores do cliente em tempo real.",
+                    "ColiseuDesk - Controle de Sessão",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
+        private void ToggleImageQuality_Click(object sender, RoutedEventArgs e)
+        {
+            switch (_engineService.Settings.ImageQuality)
+            {
+                case "best":
+                    _engineService.Settings.ImageQuality = "balanced";
+                    break;
+                case "balanced":
+                    _engineService.Settings.ImageQuality = "low";
+                    break;
+                default:
+                    _engineService.Settings.ImageQuality = "best";
+                    break;
+            }
+
+            _engineService.PersistSettings();
+            _engineService.ApplyVpsConfigToEngine();
+            UpdateToolbarToggleButtonsUI();
+            StatusTextBlock.Text = string.Format("Preferência de imagem ajustada para: {0}", BtnQualityToggle.Content);
+        }
+
+        private void ToggleAudio_Click(object sender, RoutedEventArgs e)
+        {
+            _engineService.Settings.EnableAudio = !_engineService.Settings.EnableAudio;
+            _engineService.PersistSettings();
+            _engineService.ApplyVpsConfigToEngine();
+            UpdateToolbarToggleButtonsUI();
+            StatusTextBlock.Text = _engineService.Settings.EnableAudio
+                ? "Transmissão de som remoto ativada para as conexões."
+                : "Transmissão de som remoto silenciada (Mudo).";
+        }
+
+        private void ToggleClipboard_Click(object sender, RoutedEventArgs e)
+        {
+            _engineService.Settings.EnableClipboard = !_engineService.Settings.EnableClipboard;
+            _engineService.PersistSettings();
+            _engineService.ApplyVpsConfigToEngine();
+            UpdateToolbarToggleButtonsUI();
+            StatusTextBlock.Text = _engineService.Settings.EnableClipboard
+                ? "Sincronização de Ctrl+C / Ctrl+V ativada."
+                : "Sincronização de Ctrl+C / Ctrl+V desativada.";
+        }
+
+        private void OpenRecordingsFolder_Click(object sender, RoutedEventArgs e)
+        {
+            _engineService.OpenRecordingsFolder();
+            StatusTextBlock.Text = "Pasta de gravações de sessão aberta no Windows Explorer.";
         }
 
         private void ConnectMain_Click(object sender, RoutedEventArgs e) => InitiateConnection(MainRemoteIdBox.Text, "--connect");
@@ -217,6 +350,71 @@ namespace ColiseuDesk
             }
         }
 
+        private void EditSavedClient_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
+            {
+                var existing = _engineService.Settings.SavedClients.FirstOrDefault(c => c.Id == id);
+                ClientModalIdBox.Text = id;
+                ClientModalNameBox.Text = existing != null ? existing.Name : string.Format("Terminal {0}", id);
+                ClientModalCompanyBox.Text = existing != null ? existing.Company : "Cliente Coliseu Sistemas";
+                ClientModalOverlay.Visibility = Visibility.Visible;
+                ClientModalNameBox.Focus();
+                ClientModalNameBox.SelectAll();
+            }
+        }
+
+        private void DeleteSavedClient_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
+            {
+                _engineService.RemoveClient(id);
+                RefreshClientsList();
+                StatusTextBlock.Text = string.Format("Computador {0} removido da lista de recentes.", id);
+            }
+        }
+
+        private void AddFavoriteClient_Click(object sender, RoutedEventArgs e)
+        {
+            var formatted = RustDeskEngineService.FormatId(MainRemoteIdBox.Text);
+            var existing = _engineService.Settings.SavedClients.FirstOrDefault(c => c.Id == formatted);
+
+            ClientModalIdBox.Text = formatted;
+            ClientModalNameBox.Text = existing != null ? existing.Name : (string.IsNullOrWhiteSpace(formatted) ? "" : string.Format("Terminal {0}", formatted));
+            ClientModalCompanyBox.Text = existing != null ? existing.Company : "Cliente Coliseu Sistemas";
+            ClientModalOverlay.Visibility = Visibility.Visible;
+
+            if (string.IsNullOrWhiteSpace(formatted))
+                ClientModalIdBox.Focus();
+            else
+            {
+                ClientModalNameBox.Focus();
+                ClientModalNameBox.SelectAll();
+            }
+        }
+
+        private void CloseClientModal_Click(object sender, RoutedEventArgs e)
+        {
+            ClientModalOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void SaveClientModal_Click(object sender, RoutedEventArgs e)
+        {
+            var id = RustDeskEngineService.FormatId(ClientModalIdBox.Text);
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                MessageBox.Show("Informe um ID de 9 dígitos válido.", "ColiseuDesk", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _engineService.AddOrUpdateRecentClient(id, ClientModalNameBox.Text, ClientModalCompanyBox.Text);
+            RefreshClientsList();
+            ClientModalOverlay.Visibility = Visibility.Collapsed;
+            StatusTextBlock.Text = string.Format("Cliente {0} ({1}) salvo nos favoritos!", ClientModalNameBox.Text, id);
+        }
+
         private void ClientsListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (ClientsListBox.SelectedItem is SavedClientItem item)
@@ -229,33 +427,6 @@ namespace ColiseuDesk
         {
             MainRemoteIdBox.Clear();
             MainRemoteIdBox.Focus();
-        }
-
-        private void ToolbarFeature_Click(object sender, RoutedEventArgs e)
-        {
-            var btn = sender as Button;
-            if (btn != null && btn.Tag is string featureDesc)
-            {
-                StatusTextBlock.Text = string.Format("Recurso selecionado: {0}", featureDesc);
-                if (!string.IsNullOrWhiteSpace(ToolbarRemoteIdBox.Text))
-                {
-                    InitiateConnection(ToolbarRemoteIdBox.Text, "--connect");
-                }
-            }
-        }
-
-        private void AddFavoriteClient_Click(object sender, RoutedEventArgs e)
-        {
-            var id = RustDeskEngineService.FormatId(MainRemoteIdBox.Text);
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                MessageBox.Show("Digite um ID de 9 dígitos no campo acima para salvar nos favoritos.", "ColiseuDesk", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            _engineService.AddOrUpdateRecentClient(id);
-            RefreshClientsList();
-            StatusTextBlock.Text = string.Format("Computador {0} salvo na lista de conexões rápidas!", id);
         }
 
         // Atalho exclusivo e invisível para técnico (Ctrl + Shift + F12)

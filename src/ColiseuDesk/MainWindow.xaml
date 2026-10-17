@@ -79,12 +79,12 @@
             </Grid>
         </Border>
 
-        <!-- ==================== ROW 1: BARRA DE FERRAMENTAS (ESTILO ANYDESK) ==================== -->
+        <!-- ==================== ROW 1: BARRA DE FERRAMENTAS E PREFERÊNCIAS DE SESSÃO ==================== -->
         <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#D8E0EA" BorderThickness="0,0,0,1" Padding="10,4">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="310"/>
+                    <ColumnDefinition Width="290"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -109,22 +109,22 @@
                     </Grid>
                 </Border>
 
-                <!-- Ícones de Controle da Sessão -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <Button Content="1" Width="30" Height="28" Margin="2,0" Background="#D0D7DE" Foreground="#333333" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Monitor Principal (1)" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 1)"/>
-                    <Button Content="2" Width="30" Height="28" Margin="2,0,8,0" Background="Transparent" Foreground="#666666" FontWeight="SemiBold" BorderThickness="1" BorderBrush="#D0D7DE" Cursor="Hand" ToolTip="Alternar para Monitor 2" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 2)"/>
-                    <Button Content="📂" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Transferência de Arquivos" Click="FileTransferFromToolbar_Click"/>
-                    <Button Content="💬" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Chat com o Cliente" Click="ToolbarFeature_Click" Tag="Chat Integrado"/>
-                    <Button Content="⚡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Ações do Sistema (Enviar Ctrl+Alt+Del, Elevar Permissão, Reiniciar)" Click="ToolbarFeature_Click" Tag="Ações do Sistema (Ctrl+Alt+Del, Elevar como Administrador, Reiniciar)"/>
-                    <Button Content="⌨" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Teclado e Área de Transferência" Click="ToolbarFeature_Click" Tag="Mapeamento de Teclado e Sincronização de Ctrl+C / Ctrl+V"/>
-                    <Button Content="🖥" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Exibição (Tela Cheia, Qualidade de Imagem, Som)" Click="ToolbarFeature_Click" Tag="Ajuste de Qualidade de Imagem e Transmissão de Som"/>
-                    <Button Content="🛡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Permissões de Segurança (Bloquear teclado/mouse do cliente)" Click="ToolbarFeature_Click" Tag="Permissões da Sessão (Bloquear Entrada / Modo Privacidade)"/>
-                    <Button Content="✏" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Quadro Branco (Desenhar e Apontar na Tela)" Click="ToolbarFeature_Click" Tag="Quadro Branco (Desenhar na Tela em Tempo Real)"/>
+                <!-- Controles Reais de Sessão e Preferências -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                    <Button x:Name="BtnFocusActiveWindow" Content="🖥 Focar Janela Ativa" Height="28" Padding="10,0" Margin="2,0,6,0" Background="#E8F4FC" Foreground="#0072BF" FontWeight="SemiBold" FontSize="11.5" BorderBrush="#B8DDF8" BorderThickness="1" Cursor="Hand" ToolTip="Trazer a janela da sessão remota ativa para frente (a troca de Monitor 1/2 fica no topo da janela do cliente conectado)" Click="FocusSessionWindow_Click"/>
+
+                    <Button Content="📂 Arquivos" Height="28" Padding="10,0" Margin="2,0,6,0" Background="White" Foreground="#333333" FontWeight="SemiBold" FontSize="11.5" BorderBrush="#D0D7DE" BorderThickness="1" Cursor="Hand" ToolTip="Abrir Transferência de Arquivos com o ID preenchido" Click="FileTransferFromToolbar_Click"/>
+
+                    <Button x:Name="BtnQualityToggle" Content="🎨 Imagem: Alta" Height="28" Padding="10,0" Margin="2,0,6,0" Background="White" Foreground="#333333" FontSize="11.5" BorderBrush="#D0D7DE" BorderThickness="1" Cursor="Hand" ToolTip="Alternar qualidade de imagem das sessões (Alta / Balanceada / Rápida)" Click="ToggleImageQuality_Click"/>
+
+                    <Button x:Name="BtnAudioToggle" Content="🔊 Som: Ativo" Height="28" Padding="10,0" Margin="2,0,6,0" Background="White" Foreground="#333333" FontSize="11.5" BorderBrush="#D0D7DE" BorderThickness="1" Cursor="Hand" ToolTip="Ativar ou silenciar transmissão de áudio remoto" Click="ToggleAudio_Click"/>
+
+                    <Button x:Name="BtnClipboardToggle" Content="📋 Ctrl+C/V: Ativo" Height="28" Padding="10,0" Margin="2,0" Background="White" Foreground="#333333" FontSize="11.5" BorderBrush="#D0D7DE" BorderThickness="1" Cursor="Hand" ToolTip="Ativar ou desativar sincronização da área de transferência" Click="ToggleClipboard_Click"/>
                 </StackPanel>
 
-                <!-- Ícone de Gravação -->
+                <!-- Botão Pasta de Gravações -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="⏺ Gravar Sessão" Padding="10,4" Margin="2,0" Background="Transparent" BorderBrush="#D0D7DE" BorderThickness="1" Foreground="#4C4C4C" FontSize="11.5" Cursor="Hand" ToolTip="Gravar Sessão de Suporte" Click="ToolbarFeature_Click" Tag="Gravação de Sessão de Suporte"/>
+                    <Button Content="🎬 Pasta de Gravações" Height="28" Padding="10,0" Margin="2,0" Background="White" BorderBrush="#D0D7DE" BorderThickness="1" Foreground="#4C4C4C" FontSize="11.5" Cursor="Hand" ToolTip="Abrir pasta local onde as gravações de sessão são salvas" Click="OpenRecordingsFolder_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -157,7 +157,7 @@
                                 <TextBlock Text="SEU ID COLISEUDESK" FontSize="10.5" FontWeight="Bold" Foreground="#0072BF"/>
                                 <TextBlock x:Name="LocalIdText" Text="Sincronizando..." FontSize="26" FontWeight="Bold" Foreground="#004C80" Margin="0,2,0,0"/>
                             </StackPanel>
-                            <Button Grid.Column="1" Content="📋 Copiar" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="12,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="CopyLocalId_Click"/>
+                            <Button x:Name="BtnCopyId" Grid.Column="1" Content="📋 Copiar" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="12,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="CopyLocalId_Click"/>
                         </Grid>
                     </Border>
 
@@ -174,7 +174,7 @@
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Button Content="🔄" Width="32" Height="30" Margin="0,0,6,0" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Cursor="Hand" ToolTip="Gerar nova senha temporária" Click="RegeneratePassword_Click"/>
-                                <Button Content="Copiar" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Padding="10,5" FontSize="12" Cursor="Hand" Click="CopyPassword_Click"/>
+                                <Button x:Name="BtnCopyPwd" Content="Copiar" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Padding="10,5" FontSize="12" Cursor="Hand" Click="CopyPassword_Click"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -252,7 +252,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Conexões Recentes e Favoritos" FontSize="14" FontWeight="Bold" Foreground="#333333"/>
-                            <Button Grid.Column="1" Content="+ Salvar ID Atual" Background="Transparent" BorderBrush="#0072BF" BorderThickness="1" Foreground="#0072BF" Padding="10,3" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="AddFavoriteClient_Click"/>
+                            <Button Grid.Column="1" Content="+ Salvar / Nomear ID" Background="Transparent" BorderBrush="#0072BF" BorderThickness="1" Foreground="#0072BF" Padding="10,3" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="AddFavoriteClient_Click"/>
                         </Grid>
 
                         <StackPanel x:Name="EmptyHistoryPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -269,6 +269,8 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
@@ -291,8 +293,10 @@
                                                 </StackPanel>
                                             </StackPanel>
 
-                                            <Button Grid.Column="2" Content="📂 Arquivos" Tag="{Binding Id}" VerticalAlignment="Center" Background="#F0F7FF" Foreground="#0072BF" BorderBrush="#BFCBD9" BorderThickness="1" Padding="10,6" Margin="0,0,6,0" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="FileTransferSavedClient_Click"/>
-                                            <Button Grid.Column="3" Content="Conectar" Tag="{Binding Id}" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="14,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="ConnectSavedClient_Click"/>
+                                            <Button Grid.Column="2" Content="✏" Tag="{Binding Id}" VerticalAlignment="Center" Background="White" Foreground="#555555" BorderBrush="#D0D7DE" BorderThickness="1" Padding="8,6" Margin="0,0,6,0" FontSize="11.5" Cursor="Hand" ToolTip="Renomear cliente / empresa" Click="EditSavedClient_Click"/>
+                                            <Button Grid.Column="3" Content="🗑" Tag="{Binding Id}" VerticalAlignment="Center" Background="White" Foreground="#C62828" BorderBrush="#D0D7DE" BorderThickness="1" Padding="8,6" Margin="0,0,6,0" FontSize="11.5" Cursor="Hand" ToolTip="Remover da lista" Click="DeleteSavedClient_Click"/>
+                                            <Button Grid.Column="4" Content="📂 Arquivos" Tag="{Binding Id}" VerticalAlignment="Center" Background="#F0F7FF" Foreground="#0072BF" BorderBrush="#BFCBD9" BorderThickness="1" Padding="10,6" Margin="0,0,6,0" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="FileTransferSavedClient_Click"/>
+                                            <Button Grid.Column="5" Content="Conectar" Tag="{Binding Id}" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="14,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="ConnectSavedClient_Click"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -315,9 +319,33 @@
                     <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="#1B873F" Margin="0,0,8,0"/>
                     <TextBlock x:Name="StatusTextBlock" Text="Pronto para conexões (Rede Coliseu Sistemas Online)" FontSize="12" Foreground="#444444"/>
                 </StackPanel>
-                <TextBlock Grid.Column="2" Text="ColiseuDesk v1.0 • Coliseu Sistemas" FontSize="11.5" Foreground="#888888" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="ColiseuDesk v1.1 • Coliseu Sistemas" FontSize="11.5" Foreground="#888888" VerticalAlignment="Center"/>
             </Grid>
         </Border>
+
+        <!-- ==================== MODAL DE EDIÇÃO DE CLIENTE FAVORITO ==================== -->
+        <Grid x:Name="ClientModalOverlay" Grid.RowSpan="4" Background="#66000000" Visibility="Collapsed">
+            <Border Width="440" VerticalAlignment="Center" HorizontalAlignment="Center" Background="White" BorderBrush="#DCE3EC" BorderThickness="1" CornerRadius="10" Padding="24,20">
+                <StackPanel>
+                    <TextBlock Text="⭐ Identificar Computador do Cliente" FontSize="15.5" FontWeight="Bold" Foreground="#0072BF"/>
+                    <TextBlock Text="Defina um nome amigável e a empresa para localizar rapidamente este computador na lista." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,14"/>
+
+                    <TextBlock Text="ID ColiseuDesk:" FontWeight="SemiBold" FontSize="12" Foreground="#333333"/>
+                    <TextBox x:Name="ClientModalIdBox" Height="32" Margin="0,4,0,10" Padding="8,0" VerticalContentAlignment="Center" FontSize="13.5" FontWeight="Bold"/>
+
+                    <TextBlock Text="Nome do Terminal / Setor (ex: Caixa 01, Recepção):" FontWeight="SemiBold" FontSize="12" Foreground="#333333"/>
+                    <TextBox x:Name="ClientModalNameBox" Height="32" Margin="0,4,0,10" Padding="8,0" VerticalContentAlignment="Center" FontSize="13"/>
+
+                    <TextBlock Text="Empresa / Cliente:" FontWeight="SemiBold" FontSize="12" Foreground="#333333"/>
+                    <TextBox x:Name="ClientModalCompanyBox" Height="32" Margin="0,4,0,16" Padding="8,0" VerticalContentAlignment="Center" FontSize="13"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Cancelar" Width="100" Height="34" Margin="0,0,10,0" Background="#E4E9F0" Foreground="#333333" BorderThickness="0" Cursor="Hand" Click="CloseClientModal_Click"/>
+                        <Button Content="Salvar Cliente" Width="130" Height="34" Background="#0072BF" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="SaveClientModal_Click"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- ==================== PAINEL TÉCNICO OCULTO (Apenas via atalho secreto Ctrl+Shift+F12) ==================== -->
         <Grid x:Name="VpsModalOverlay" Grid.RowSpan="4" Background="#88000000" Visibility="Collapsed">
