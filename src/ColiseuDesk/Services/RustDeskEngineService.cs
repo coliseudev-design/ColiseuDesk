@@ -202,10 +202,31 @@ namespace ColiseuDesk.Services
                 sb.AppendLine("enable-clipboard = 'Y'");
 
                 File.WriteAllText(tomlPath, sb.ToString(), Encoding.UTF8);
+                ApplyVisualBrandingToExtractedEngine();
             }
             catch
             {
                 // Ignora se estiver em uso
+            }
+        }
+
+        /// <summary>
+        /// Substitui automaticamente o icon.svg interno da janela de vídeo pelo emblema da Coliseu Sistemas.
+        /// </summary>
+        public void ApplyVisualBrandingToExtractedEngine()
+        {
+            try
+            {
+                var flutterIconSvg = Path.Combine(_extractedRustDeskDir, "data", "flutter_assets", "assets", "icon.svg");
+                if (Directory.Exists(Path.GetDirectoryName(flutterIconSvg)))
+                {
+                    const string coliseuSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 256 256""><path d=""M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z"" fill=""#0072BF""/><path d=""M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z"" fill=""#0072BF""/><path d=""M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z"" fill=""#0072BF""/><path d=""M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z"" fill=""#0094D2""/><path d=""M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z"" fill=""#0094D2""/></svg>";
+                    File.WriteAllText(flutterIconSvg, coliseuSvg, Encoding.UTF8);
+                }
+            }
+            catch
+            {
+                // Ignora se o arquivo estiver em uso
             }
         }
 
