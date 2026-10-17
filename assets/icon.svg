@@ -1,19 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <defs>
-    <linearGradient id="coliseuPrimary" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0072BF" />
-      <stop offset="100%" stop-color="#005A99" />
-    </linearGradient>
-    <linearGradient id="coliseuAccent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0094D2" />
-      <stop offset="100%" stop-color="#0072BF" />
-    </linearGradient>
-  </defs>
+  <rect width="256" height="256" rx="36" fill="#FFFFFF"/>
   <!-- Coliseu Sistemas Arcs (Left Primary Blue #0072BF) -->
-  <path d="M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z" fill="url(#coliseuPrimary)" />
-  <path d="M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z" fill="url(#coliseuPrimary)" />
-  <path d="M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z" fill="url(#coliseuPrimary)" />
+  <path d="M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z" fill="#0072BF" />
+  <path d="M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z" fill="#0072BF" />
+  <path d="M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z" fill="#0072BF" />
   <!-- Coliseu Sistemas Arcs (Right Cyan #0094D2) -->
-  <path d="M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z" fill="url(#coliseuAccent)" />
-  <path d="M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z" fill="url(#coliseuAccent)" />
+  <path d="M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z" fill="#0094D2" />
+  <path d="M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z" fill="#0094D2" />
 </svg>

@@ -138,9 +138,10 @@
             </Grid.ColumnDefinitions>
 
             <!-- CARD ESQUERDO: ESTE COMPUTADOR (ID E SENHA DO CLIENTE) -->
-            <Border Grid.Column="0" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,20">
+            <Border Grid.Column="0" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,18">
                 <StackPanel>
-                    <Image Source="pack://application:,,,/Assets/logo-coliseu.png" Height="56" HorizontalAlignment="Left" Margin="0,0,0,14"/>
+                    <!-- Logo Oficial Coliseu Sistemas Grande Preenchida -->
+                    <Image Source="pack://application:,,,/Assets/logo-coliseu.png" HorizontalAlignment="Stretch" Stretch="Uniform" MaxHeight="95" Margin="0,0,0,16" RenderOptions.BitmapScalingMode="HighQuality"/>
 
                     <TextBlock Text="Este Computador (Receber Suporte)" FontSize="15" FontWeight="Bold" Foreground="#222222"/>
                     <TextBlock Text="Informe o ID e a senha abaixo ao suporte da Coliseu Sistemas para autorizar o atendimento remoto." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,16"/>

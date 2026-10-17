@@ -211,16 +211,43 @@ namespace ColiseuDesk.Services
         }
 
         /// <summary>
-        /// Substitui automaticamente o icon.svg interno da janela de vídeo pelo emblema da Coliseu Sistemas.
+        /// Força o tema claro (branco predominante, sem telas dark) em todas as janelas de conexão
+        /// e substitui o icon.svg interno pelo emblema com fundo branco da Coliseu Sistemas.
         /// </summary>
         public void ApplyVisualBrandingToExtractedEngine()
         {
             try
             {
+                // 1. Garante que RustDesk_local.toml tenha theme = 'light' (Zero telas Dark!)
+                Directory.CreateDirectory(_rustDeskConfigDir);
+                var localTomlPath = Path.Combine(_rustDeskConfigDir, "RustDesk_local.toml");
+                if (File.Exists(localTomlPath))
+                {
+                    var content = File.ReadAllText(localTomlPath, Encoding.UTF8);
+                    if (Regex.IsMatch(content, @"^\s*theme\s*=\s*'[^']*'", RegexOptions.Multiline))
+                    {
+                        content = Regex.Replace(content, @"^\s*theme\s*=\s*'[^']*'", "theme = 'light'", RegexOptions.Multiline);
+                    }
+                    else if (content.Contains("[options]"))
+                    {
+                        content = content.Replace("[options]", "[options]\r\ntheme = 'light'");
+                    }
+                    else
+                    {
+                        content += "\r\n[options]\r\ntheme = 'light'\r\n";
+                    }
+                    File.WriteAllText(localTomlPath, content, Encoding.UTF8);
+                }
+                else
+                {
+                    File.WriteAllText(localTomlPath, "[options]\r\ntheme = 'light'\r\n", Encoding.UTF8);
+                }
+
+                // 2. Substitui o icon.svg da janela de conexão pelo ícone com fundo branco da Coliseu Sistemas
                 var flutterIconSvg = Path.Combine(_extractedRustDeskDir, "data", "flutter_assets", "assets", "icon.svg");
                 if (Directory.Exists(Path.GetDirectoryName(flutterIconSvg)))
                 {
-                    const string coliseuSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 256 256""><path d=""M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z"" fill=""#0072BF""/><path d=""M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z"" fill=""#0072BF""/><path d=""M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z"" fill=""#0072BF""/><path d=""M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z"" fill=""#0094D2""/><path d=""M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z"" fill=""#0094D2""/></svg>";
+                    const string coliseuSvg = @"<svg xmlns=""http://www.w3.org/2000/svg"" viewBox=""0 0 256 256""><rect width=""256"" height=""256"" rx=""36"" fill=""#FFFFFF""/><path d=""M 28 84 Q 82 54 132 62 L 154 96 Q 92 86 30 112 Z"" fill=""#0072BF""/><path d=""M 32 134 Q 98 112 168 120 L 188 154 Q 108 144 35 164 Z"" fill=""#0072BF""/><path d=""M 36 184 Q 116 168 202 176 L 218 208 Q 124 202 38 214 Z"" fill=""#0072BF""/><path d=""M 150 68 Q 194 66 228 88 L 228 118 Q 194 102 170 100 Z"" fill=""#0094D2""/><path d=""M 202 168 Q 218 172 230 180 L 230 206 L 220 206 Z"" fill=""#0094D2""/></svg>";
                     File.WriteAllText(flutterIconSvg, coliseuSvg, Encoding.UTF8);
                 }
             }
