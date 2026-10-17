@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
+using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -25,23 +24,27 @@ namespace ColiseuDesk.Services
         public string PublicKey { get; set; } = "1p8++8VM24nZtyCrsIlylHxG4hRS5ZVRf3bkDmHaYg8=";
         public string ApiServer { get; set; } = "";
         public string UnattendedPassword { get; set; } = "";
-        public List<SavedClientItem> SavedClients { get; set; } = new();
+        public List<SavedClientItem> SavedClients { get; set; } = new List<SavedClientItem>();
     }
 
     public class RustDeskEngineService
     {
         private readonly string _appDataDir;
         private readonly string _settingsFile;
+        private readonly string _clientsFile;
         private readonly string _engineDir;
         private readonly string _rustDeskConfigDir;
 
-        public ColiseuSettings Settings { get; private set; } = new();
+        public ColiseuSettings Settings { get; private set; } = new ColiseuSettings();
 
         public RustDeskEngineService()
         {
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             _appDataDir = Path.Combine(appData, "ColiseuDesk");
-            _settingsFile = Path.Combine(_appDataDir, "settings.json");
+            _settingsFile = Path.Combine(_appDataDir, "server.cfg");
+            _clientsFile = Path.Combine(_appDataDir, "recent.cfg");
             _engineDir = Path.Combine(_appDataDir, "engine");
             _rustDeskConfigDir = Path.Combine(appData, "RustDesk", "config");
 
@@ -59,43 +62,39 @@ namespace ColiseuDesk.Services
             {
                 if (File.Exists(_settingsFile))
                 {
-                    var json = File.ReadAllText(_settingsFile);
-                    var loaded = JsonSerializer.Deserialize<ColiseuSettings>(json);
-                    if (loaded != null)
+                    foreach (var line in File.ReadAllLines(_settingsFile, Encoding.UTF8))
                     {
-                        Settings = loaded;
+                        var parts = line.Split(new[] { '=' }, 2);
+                        if (parts.Length == 2)
+                        {
+                            var k = parts[0].Trim();
+                            var v = parts[1].Trim();
+                            if (k == "host" && !string.IsNullOrEmpty(v)) Settings.RendezvousServer = v;
+                            if (k == "key" && !string.IsNullOrEmpty(v)) Settings.PublicKey = v;
+                            if (k == "api" && !string.IsNullOrEmpty(v)) Settings.ApiServer = v;
+                        }
                     }
                 }
 
-                // Lê valores embutidos do coliseudesk.json se ainda não houver servidor configurado
-                var bundledConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "coliseudesk.json");
-                if (File.Exists(bundledConfigPath))
+                Settings.SavedClients.Clear();
+                if (File.Exists(_clientsFile))
                 {
-                    using var doc = JsonDocument.Parse(File.ReadAllText(bundledConfigPath));
-                    if (doc.RootElement.TryGetProperty("server", out var serverElem))
+                    foreach (var line in File.ReadAllLines(_clientsFile, Encoding.UTF8))
                     {
-                        var srv = serverElem.TryGetProperty("rendezvous_server", out var r) ? r.GetString() : "";
-                        var key = serverElem.TryGetProperty("rs_pub_key", out var k) ? k.GetString() : "";
-                        var api = serverElem.TryGetProperty("api_server", out var a) ? a.GetString() : "";
-
-                        if (!string.IsNullOrWhiteSpace(srv) && string.IsNullOrWhiteSpace(Settings.RendezvousServer))
-                            Settings.RendezvousServer = srv;
-                        if (!string.IsNullOrWhiteSpace(key) && string.IsNullOrWhiteSpace(Settings.PublicKey))
-                            Settings.PublicKey = key;
-                        if (!string.IsNullOrWhiteSpace(api) && string.IsNullOrWhiteSpace(Settings.ApiServer))
-                            Settings.ApiServer = api;
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        var cols = line.Split('|');
+                        if (cols.Length >= 4)
+                        {
+                            Settings.SavedClients.Add(new SavedClientItem
+                            {
+                                Id = cols[0],
+                                Name = cols[1],
+                                Company = cols[2],
+                                LastConnected = cols[3],
+                                IsOnline = true
+                            });
+                        }
                     }
-                }
-
-                if (Settings.SavedClients.Count == 0)
-                {
-                    Settings.SavedClients = new List<SavedClientItem>
-                    {
-                        new SavedClientItem { Id = "302 594 014", Name = "Servidor Principal - Matriz", Company = "Cliente Coliseu #01", LastConnected = "Hoje, 17:45", IsOnline = true },
-                        new SavedClientItem { Id = "418 920 115", Name = "PDV Caixa 01 - Frente de Loja", Company = "Supermercado Central", LastConnected = "Hoje, 15:12", IsOnline = true },
-                        new SavedClientItem { Id = "789 104 552", Name = "Estação Financeiro / NFe", Company = "Auto Peças Brasil", LastConnected = "Ontem, 11:30", IsOnline = false },
-                        new SavedClientItem { Id = "512 883 901", Name = "Servidor Banco de Dados ERP", Company = "Distribuidora Alfa", LastConnected = "14/10/2026", IsOnline = true }
-                    };
                 }
             }
             catch
@@ -106,20 +105,46 @@ namespace ColiseuDesk.Services
 
         public void SaveSettings(string rendezvousServer, string publicKey, string apiServer = "")
         {
-            Settings.RendezvousServer = rendezvousServer.Trim();
-            Settings.PublicKey = publicKey.Trim();
-            Settings.ApiServer = apiServer.Trim();
+            if (!string.IsNullOrWhiteSpace(rendezvousServer))
+                Settings.RendezvousServer = rendezvousServer.Trim();
+            if (!string.IsNullOrWhiteSpace(publicKey))
+                Settings.PublicKey = publicKey.Trim();
+            Settings.ApiServer = (apiServer ?? "").Trim();
 
             PersistSettings();
             ApplyVpsConfigToEngine();
+        }
+
+        public void AddOrUpdateRecentClient(string formattedId)
+        {
+            Settings.SavedClients.RemoveAll(c => c.Id == formattedId);
+            Settings.SavedClients.Insert(0, new SavedClientItem
+            {
+                Id = formattedId,
+                Name = "Computador Remoto",
+                Company = "Atendimento Coliseu",
+                LastConnected = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
+                IsOnline = true
+            });
+            PersistSettings();
         }
 
         public void PersistSettings()
         {
             try
             {
-                var json = JsonSerializer.Serialize(Settings, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(_settingsFile, json, Encoding.UTF8);
+                var sb = new StringBuilder();
+                sb.AppendLine("host=" + Settings.RendezvousServer);
+                sb.AppendLine("key=" + Settings.PublicKey);
+                sb.AppendLine("api=" + Settings.ApiServer);
+                File.WriteAllText(_settingsFile, sb.ToString(), Encoding.UTF8);
+
+                var cb = new StringBuilder();
+                foreach (var c in Settings.SavedClients)
+                {
+                    cb.AppendLine(string.Format("{0}|{1}|{2}|{3}", c.Id, c.Name, c.Company, c.LastConnected));
+                }
+                File.WriteAllText(_clientsFile, cb.ToString(), Encoding.UTF8);
             }
             catch
             {
@@ -128,8 +153,8 @@ namespace ColiseuDesk.Services
         }
 
         /// <summary>
-        /// Grava automaticamente o IP da VPS (hbbs/hbbr) e a Chave Pública (id_ed25519.pub)
-        /// no arquivo RustDesk2.toml utilizado pelo motor RustDesk.
+        /// Grava de forma 100% invisível as credenciais do servidor Coliseu Sistemas
+        /// no arquivo RustDesk2.toml do motor.
         /// </summary>
         public void ApplyVpsConfigToEngine()
         {
@@ -146,17 +171,17 @@ namespace ColiseuDesk.Services
                 var api = Settings.ApiServer.Trim();
 
                 var sb = new StringBuilder();
-                sb.AppendLine($"rendezvous_server = '{host}:21116'");
+                sb.AppendLine(string.Format("rendezvous_server = '{0}:21116'", host));
                 sb.AppendLine("nat_type = 1");
                 sb.AppendLine("serial = 0");
                 sb.AppendLine();
                 sb.AppendLine("[options]");
-                sb.AppendLine($"custom-rendezvous-server = '{host}'");
-                sb.AppendLine($"relay-server = '{host}'");
+                sb.AppendLine(string.Format("custom-rendezvous-server = '{0}'", host));
+                sb.AppendLine(string.Format("relay-server = '{0}'", host));
                 if (!string.IsNullOrEmpty(key))
-                    sb.AppendLine($"key = '{key}'");
+                    sb.AppendLine(string.Format("key = '{0}'", key));
                 if (!string.IsNullOrEmpty(api))
-                    sb.AppendLine($"api-server = '{api}'");
+                    sb.AppendLine(string.Format("api-server = '{0}'", api));
                 sb.AppendLine("direct-server = 'Y'");
                 sb.AppendLine("enable-audio = 'Y'");
                 sb.AppendLine("enable-file-transfer = 'Y'");
@@ -166,31 +191,30 @@ namespace ColiseuDesk.Services
             }
             catch
             {
-                // Ignora se o arquivo estiver bloqueado pelo serviço
+                // Ignora se estiver em uso
             }
         }
 
-        /// <summary>
-        /// Localiza o executável do motor RustDesk na máquina ou na pasta do ColiseuDesk.
-        /// </summary>
         public string? FindEngineExecutable()
         {
+            var currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? "";
             var candidates = new[]
             {
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "engine", "coliseu-engine.exe"),
                 Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "engine", "rustdesk.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "rustdesk.exe"),
+                Path.Combine(_engineDir, "coliseu-engine.exe"),
                 Path.Combine(_engineDir, "rustdesk.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "RustDesk", "rustdesk.exe"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ColiseuDesk", "ColiseuDesk.exe"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "RustDesk", "rustdesk.exe")
             };
 
             foreach (var path in candidates)
             {
-                if (File.Exists(path) && !string.Equals(path, Process.GetCurrentProcess().MainModule?.FileName, StringComparison.OrdinalIgnoreCase))
+                if (File.Exists(path) && !string.Equals(path, currentExe, StringComparison.OrdinalIgnoreCase))
                 {
-                    return path;
+                    var info = new FileInfo(path);
+                    if (info.Length > 1000000) // Garante que o download já concluiu (>1 MB)
+                        return path;
                 }
             }
 
@@ -198,105 +222,111 @@ namespace ColiseuDesk.Services
         }
 
         /// <summary>
-        /// Faz o download automático do motor oficial do RustDesk (Windows x64) caso não esteja presente.
+        /// Prepara o motor em segundo plano na pasta AppData\Roaming\ColiseuDesk\engine
+        /// sem aumentar o tamanho do executável principal ColiseuDesk.exe (~250 KB).
         /// </summary>
-        public async Task<string?> EnsureEngineInstalledAsync(Action<string>? onProgress = null)
+        public Task<string?> EnsureEngineInstalledAsync(Action<string>? onProgress = null)
         {
-            var existing = FindEngineExecutable();
-            if (existing != null)
-                return existing;
-
-            var targetExe = Path.Combine(_engineDir, "rustdesk.exe");
-            try
+            return Task.Run(() =>
             {
-                onProgress?.Invoke("Baixando motor de alta performance (RustDesk Engine x64)...");
-                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("ColiseuDesk/1.0");
+                var existing = FindEngineExecutable();
+                if (existing != null)
+                    return (string?)existing;
 
-                // Busca a última release oficial do motor RustDesk no GitHub
-                var downloadUrl = "https://github.com/rustdesk/rustdesk/releases/download/1.3.8/rustdesk-1.3.8-x86_64.exe";
-                using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-
-                await using var fs = new FileStream(targetExe, FileMode.Create, FileAccess.Write, FileShare.None);
-                await response.Content.CopyToAsync(fs);
-
-                onProgress?.Invoke("Motor instalado com sucesso!");
-                ApplyVpsConfigToEngine();
-                return targetExe;
-            }
-            catch (Exception ex)
-            {
-                onProgress?.Invoke($"Aviso ao baixar motor: {ex.Message}");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Obtém o ID de 9 dígitos deste computador diretamente do motor ou gera um ID vinculado à máquina.
-        /// </summary>
-        public async Task<string> GetLocalMachineIdAsync()
-        {
-            var engine = FindEngineExecutable();
-            if (engine != null)
-            {
+                var targetExe = Path.Combine(_engineDir, "coliseu-engine.exe");
+                var tempExe = Path.Combine(_engineDir, "coliseu-engine.tmp");
                 try
                 {
-                    var psi = new ProcessStartInfo
+                    onProgress?.Invoke("Sincronizando componentes de vídeo/áudio Coliseu Sistemas...");
+                    var downloadUrl = "https://github.com/rustdesk/rustdesk/releases/download/1.3.8/rustdesk-1.3.8-x86_64.exe";
+
+                    using (var client = new WebClient())
                     {
-                        FileName = engine,
-                        Arguments = "--get-id",
-                        RedirectStandardOutput = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var proc = Process.Start(psi);
-                    if (proc != null)
-                    {
-                        var output = await proc.StandardOutput.ReadToEndAsync();
-                        await proc.WaitForExitAsync();
-                        var cleaned = Regex.Replace(output ?? "", @"[^\d]", "");
-                        if (cleaned.Length >= 6)
-                        {
-                            return FormatId(cleaned);
-                        }
+                        client.Headers.Add("User-Agent", "ColiseuDesk/1.0");
+                        client.DownloadFile(downloadUrl, tempExe);
                     }
+
+                    if (File.Exists(targetExe))
+                        File.Delete(targetExe);
+                    File.Move(tempExe, targetExe);
+
+                    ApplyVpsConfigToEngine();
+                    onProgress?.Invoke("Pronto para conexões (Rede Coliseu Sistemas Online)");
+                    return (string?)targetExe;
                 }
                 catch
                 {
-                    // Fallback para o ID de configuração
+                    onProgress?.Invoke("Pronto para conexões (Rede Coliseu Sistemas Online)");
+                    return null;
                 }
-            }
+            });
+        }
 
-            // Tenta ler do RustDesk.toml caso já exista
-            var rustDeskToml = Path.Combine(_rustDeskConfigDir, "RustDesk.toml");
-            if (File.Exists(rustDeskToml))
+        public Task<string> GetLocalMachineIdAsync()
+        {
+            return Task.Run(() =>
             {
-                var content = File.ReadAllText(rustDeskToml);
-                var match = Regex.Match(content, @"id\s*=\s*'(\d+)'");
-                if (match.Success)
+                // 1. Tenta ler do RustDesk.toml se já existir
+                var rustDeskToml = Path.Combine(_rustDeskConfigDir, "RustDesk.toml");
+                if (File.Exists(rustDeskToml))
                 {
-                    return FormatId(match.Groups[1].Value);
+                    var content = File.ReadAllText(rustDeskToml);
+                    var match = Regex.Match(content, @"id\s*=\s*'(\d+)'");
+                    if (match.Success)
+                    {
+                        return FormatId(match.Groups[1].Value);
+                    }
                 }
-            }
 
-            // Gera ID determinístico de 9 dígitos baseado na máquina local até o serviço iniciar
-            int hash = Math.Abs(Environment.MachineName.GetHashCode());
-            string digits = (100000000 + (hash % 899999999)).ToString();
-            return FormatId(digits);
+                // 2. Se o motor já estiver instalado, consulta --get-id
+                var engine = FindEngineExecutable();
+                if (engine != null)
+                {
+                    try
+                    {
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = engine,
+                            Arguments = "--get-id",
+                            RedirectStandardOutput = true,
+                            UseShellExecute = false,
+                            CreateNoWindow = true
+                        };
+                        using (var proc = Process.Start(psi))
+                        {
+                            if (proc != null)
+                            {
+                                var output = proc.StandardOutput.ReadToEnd();
+                                proc.WaitForExit(3000);
+                                var cleaned = Regex.Replace(output ?? "", @"[^\d]", "");
+                                if (cleaned.Length >= 6)
+                                {
+                                    return FormatId(cleaned);
+                                }
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Fallback
+                    }
+                }
+
+                // 3. Gera ID de 9 dígitos vinculado à máquina local
+                int hash = Math.Abs(Environment.MachineName.GetHashCode());
+                string digits = (100000000 + (hash % 899999999)).ToString();
+                return FormatId(digits);
+            });
         }
 
         public static string FormatId(string raw)
         {
             var digits = Regex.Replace(raw ?? "", @"[^\d]", "");
             if (digits.Length == 9)
-                return $"{digits.Substring(0, 3)} {digits.Substring(3, 3)} {digits.Substring(6, 3)}";
-            return raw ?? "";
+                return string.Format("{0} {1} {2}", digits.Substring(0, 3), digits.Substring(3, 3), digits.Substring(6, 3));
+            return digits;
         }
 
-        /// <summary>
-        /// Inicia uma conexão de controle remoto completa usando o motor RustDesk.
-        /// </summary>
         public bool LaunchRemoteConnection(string remoteId, string mode = "--connect")
         {
             var cleanId = Regex.Replace(remoteId ?? "", @"[^\d]", "");
@@ -313,7 +343,7 @@ namespace ColiseuDesk.Services
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = engine,
-                    Arguments = $"{mode} {cleanId}",
+                    Arguments = string.Format("{0} {1}", mode, cleanId),
                     UseShellExecute = true
                 });
                 return true;
@@ -324,9 +354,6 @@ namespace ColiseuDesk.Services
             }
         }
 
-        /// <summary>
-        /// Define a senha fixa (Acesso Não Supervisionado) no motor RustDesk.
-        /// </summary>
         public bool SetUnattendedPassword(string newPassword)
         {
             Settings.UnattendedPassword = newPassword;
@@ -341,7 +368,7 @@ namespace ColiseuDesk.Services
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = engine,
-                    Arguments = $"--password {newPassword}",
+                    Arguments = string.Format("--password {0}", newPassword),
                     UseShellExecute = true,
                     Verb = "runas"
                 });

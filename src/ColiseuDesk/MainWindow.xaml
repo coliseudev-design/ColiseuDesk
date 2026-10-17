@@ -3,20 +3,21 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ColiseuDesk - Coliseu Sistemas"
         Width="1040" Height="680"
-        MinWidth="900" MinHeight="600"
+        MinWidth="920" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         Background="#F3F6FA"
-        FontFamily="Segoe UI">
+        FontFamily="Segoe UI"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Grid>
         <Grid.RowDefinitions>
             <!-- Row 0: Barra de Abas estilo AnyDesk -->
             <RowDefinition Height="38"/>
-            <!-- Row 1: Barra de Ferramentas de Sessão Remota estilo AnyDesk (do print) -->
+            <!-- Row 1: Barra de Ferramentas de Sessão Remota estilo AnyDesk -->
             <RowDefinition Height="44"/>
             <!-- Row 2: Conteúdo Principal (Painel Coliseu Sistemas) -->
             <RowDefinition Height="*"/>
-            <!-- Row 3: Rodapé de Status da VPS e Motor RustDesk -->
+            <!-- Row 3: Rodapé de Status -->
             <RowDefinition Height="32"/>
         </Grid.RowDefinitions>
 
@@ -35,34 +36,35 @@
                     <Border Background="#FFFFFF" CornerRadius="6,6,0,0" Padding="14,7" Margin="0,4,4,0" BorderBrush="#CFD8E3" BorderThickness="1,1,1,0">
                         <StackPanel Orientation="Horizontal">
                             <Image Source="pack://application:,,,/Assets/icon.png" Width="18" Height="18" Margin="0,0,8,0"/>
-                            <TextBlock Text="ColiseuDesk" FontWeight="SemiBold" Foreground="#0072BF" FontSize="13"/>
+                            <TextBlock Text="Nova Sessão" FontWeight="SemiBold" Foreground="#0072BF" FontSize="13"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Aba de Sessão Ativa (Exemplo igual ao print: 302594014) -->
-                    <Border x:Name="ActiveSessionTab" Background="#DCE3EC" CornerRadius="6,6,0,0" Padding="12,7" Margin="0,6,4,0" Cursor="Hand" MouseLeftButtonUp="ActiveSessionTab_Click">
+                    <!-- Aba de Sessão Ativa (Aparece quando conecta) -->
+                    <Border x:Name="ActiveSessionTab" Visibility="Collapsed" Background="#DCE3EC" CornerRadius="6,6,0,0" Padding="12,7" Margin="0,6,4,0" Cursor="Hand" MouseLeftButtonUp="ActiveSessionTab_Click">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="🖥" Foreground="#4C4C4C" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TabRemoteIdText" Text="302 594 014" Foreground="#333333" FontSize="12.5" VerticalAlignment="Center"/>
-                            <TextBlock Text="✕" Foreground="#777777" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TabRemoteIdText" Text="" Foreground="#333333" FontSize="12.5" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
                     <!-- Botão + Nova Conexão -->
-                    <Button Content="+" Width="28" Height="26" Margin="2,6,0,0" Background="Transparent" BorderThickness="0" FontSize="16" FontWeight="Bold" Foreground="#4C4C4C" Cursor="Hand" ToolTip="Nova aba de conexão" Click="FocusRemoteInput_Click"/>
+                    <Button Content="+" Width="28" Height="26" Margin="2,6,0,0" Background="Transparent" BorderThickness="0" FontSize="16" FontWeight="Bold" Foreground="#4C4C4C" Cursor="Hand" ToolTip="Nova conexão" Click="FocusRemoteInput_Click"/>
                 </StackPanel>
 
-                <!-- Status de Criptografia no Topo Direito -->
+                <!-- Selo Corporativo Limpo no Topo Direito (Sem mostrar IP ou VPS para o cliente) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#E0F2FE" CornerRadius="10" Padding="10,3" Margin="0,0,8,0">
-                        <TextBlock x:Name="TopVpsBadge" Text="🔒 Motor RustDesk • Criptografia TLS/Ed25519" FontSize="11.5" Foreground="#0072BF" FontWeight="SemiBold"/>
+                    <Border Background="#E8F5E9" BorderBrush="#C8E6C9" BorderThickness="1" CornerRadius="12" Padding="12,4">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="#1B873F" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TopVpsBadge" Text="Rede Coliseu Sistemas Online • Conexão Criptografada" FontSize="11.5" Foreground="#1B5E20" FontWeight="SemiBold"/>
+                        </StackPanel>
                     </Border>
-                    <Button Content="⚙ Configurar VPS" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="10,4" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="OpenVpsModal_Click"/>
                 </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ==================== ROW 1: BARRA DE FERRAMENTAS (IDÊNTICA AO PRINT DO ANYDESK) ==================== -->
+        <!-- ==================== ROW 1: BARRA DE FERRAMENTAS (ESTILO ANYDESK) ==================== -->
         <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="#D8E0EA" BorderThickness="0,0,0,1" Padding="10,4">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -74,11 +76,11 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Status de Conexão Segura -->
-                <Border Grid.Column="0" Background="#E8F5E9" CornerRadius="4" Padding="7,4" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Pronto para conectar na VPS Coliseu Sistemas">
+                <Border Grid.Column="0" Background="#E8F5E9" CornerRadius="4" Padding="7,4" Margin="0,0,8,0" VerticalAlignment="Center" ToolTip="Conectado à rede Coliseu Sistemas">
                     <TextBlock Text="✔" Foreground="#1B873F" FontWeight="Bold" FontSize="13"/>
                 </Border>
 
-                <!-- Campo de Endereço Remoto (igual ao print: ícone verde + número + botões internos) -->
+                <!-- Campo de Endereço Remoto na Barra Superior -->
                 <Border Grid.Column="1" Background="White" BorderBrush="#BFCBD9" BorderThickness="1" CornerRadius="4" Height="32" VerticalAlignment="Center">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -86,44 +88,43 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="🖥" Foreground="#1B873F" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        <TextBox x:Name="ToolbarRemoteIdBox" Grid.Column="1" Text="302 594 014" BorderThickness="0" VerticalContentAlignment="Center" FontSize="13.5" FontWeight="SemiBold" Foreground="#222222" KeyDown="ToolbarRemoteIdBox_KeyDown"/>
+                        <TextBlock Grid.Column="0" Text="🖥" Foreground="#0072BF" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <TextBox x:Name="ToolbarRemoteIdBox" Grid.Column="1" Text="" BorderThickness="0" VerticalContentAlignment="Center" FontSize="13.5" FontWeight="SemiBold" Foreground="#222222" ToolTip="Digite o ID do computador remoto" KeyDown="ToolbarRemoteIdBox_KeyDown"/>
                         <Button Grid.Column="2" Content="➔" Width="30" Background="#0072BF" Foreground="White" BorderThickness="0" FontWeight="Bold" Cursor="Hand" ToolTip="Conectar agora" Click="ConnectFromToolbar_Click"/>
                     </Grid>
                 </Border>
 
                 <!-- Ícones de Controle da Sessão (Exatamente na ordem do print do AnyDesk) -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <!-- [1] Seleção de Monitor -->
-                    <Button Content="1" Width="30" Height="28" Margin="2,0" Background="#D0D7DE" Foreground="#333333" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Alternar Monitor 1 / 2 do Cliente" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 1 / Monitor 2)"/>
-                    <Button Content="2" Width="30" Height="28" Margin="2,0,8,0" Background="Transparent" Foreground="#666666" FontWeight="SemiBold" BorderThickness="1" BorderBrush="#D0D7DE" Cursor="Hand" ToolTip="Alternar para Monitor 2" Click="ToolbarFeature_Click" Tag="Monitor Secundário (2)"/>
+                    <!-- [1] [2] Seleção de Monitor -->
+                    <Button Content="1" Width="30" Height="28" Margin="2,0" Background="#D0D7DE" Foreground="#333333" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Monitor Principal (1)" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 1)"/>
+                    <Button Content="2" Width="30" Height="28" Margin="2,0,8,0" Background="Transparent" Foreground="#666666" FontWeight="SemiBold" BorderThickness="1" BorderBrush="#D0D7DE" Cursor="Hand" ToolTip="Alternar para Monitor 2" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 2)"/>
 
                     <!-- Transferência de Arquivos -->
-                    <Button Content="📂" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Transferência de Arquivos com o Cliente" Click="FileTransferFromToolbar_Click"/>
+                    <Button Content="📂" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Transferência de Arquivos" Click="FileTransferFromToolbar_Click"/>
 
                     <!-- Chat ao Vivo -->
-                    <Button Content="💬" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Chat com o Cliente" Click="ToolbarFeature_Click" Tag="Chat Integrado Técnico ↔ Cliente"/>
+                    <Button Content="💬" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Chat com o Cliente" Click="ToolbarFeature_Click" Tag="Chat Integrado"/>
 
                     <!-- Ações Rápidas (Raio: Ctrl+Alt+Del, Reiniciar, Screenshot) -->
-                    <Button Content="⚡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Ações do Sistema (Enviar Ctrl+Alt+Del, Capturar Tela, Reiniciar Remoto)" Click="ToolbarFeature_Click" Tag="Ações do Sistema (Ctrl+Alt+Del, Elevar Administrador, Reiniciar)"/>
+                    <Button Content="⚡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Ações do Sistema (Enviar Ctrl+Alt+Del, Elevar Permissão, Reiniciar)" Click="ToolbarFeature_Click" Tag="Ações do Sistema (Ctrl+Alt+Del, Elevar como Administrador, Reiniciar)"/>
 
                     <!-- Teclado -->
-                    <Button Content="⌨" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Teclado e Atalhos" Click="ToolbarFeature_Click" Tag="Mapeamento de Teclado 1:1 e Sincronização de Área de Transferência"/>
+                    <Button Content="⌨" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Teclado e Área de Transferência" Click="ToolbarFeature_Click" Tag="Mapeamento de Teclado e Sincronização de Ctrl+C / Ctrl+V"/>
 
                     <!-- Qualidade de Imagem e Som -->
-                    <Button Content="🖥" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Exibição (Tela Cheia, Qualidade, Transmissão de Som)" Click="ToolbarFeature_Click" Tag="Qualidade de Vídeo (Codec VP9/AV1/H264) e Transmissão de Áudio HD"/>
+                    <Button Content="🖥" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Exibição (Tela Cheia, Qualidade de Imagem, Som)" Click="ToolbarFeature_Click" Tag="Ajuste de Qualidade de Imagem e Transmissão de Som"/>
 
                     <!-- Escudo de Permissões -->
-                    <Button Content="🛡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Permissões da Sessão (Bloquear mouse do cliente, Cortina de Privacidade, Áudio)" Click="ToolbarFeature_Click" Tag="Permissões de Segurança (Bloquear Entrada do Cliente / Modo Cortina)"/>
+                    <Button Content="🛡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Permissões de Segurança (Bloquear teclado/mouse do cliente)" Click="ToolbarFeature_Click" Tag="Permissões da Sessão (Bloquear Entrada / Modo Privacidade)"/>
 
                     <!-- Caneta / Quadro Branco -->
-                    <Button Content="✏" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Quadro Branco (Desenhar e Apontar na Tela do Cliente)" Click="ToolbarFeature_Click" Tag="Quadro Branco (Desenhar na Tela do Cliente em Tempo Real)"/>
+                    <Button Content="✏" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Quadro Branco (Desenhar e Apontar na Tela)" Click="ToolbarFeature_Click" Tag="Quadro Branco (Desenhar na Tela em Tempo Real)"/>
                 </StackPanel>
 
-                <!-- Ícones da Direita (Gravação, Acesso Fixo, Menu) -->
+                <!-- Ícone de Gravação -->
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="⏺ Gravar" Padding="8,4" Margin="2,0" Background="Transparent" BorderBrush="#D0D7DE" BorderThickness="1" Foreground="#4C4C4C" FontSize="11.5" Cursor="Hand" ToolTip="Gravar Sessão de Suporte" Click="ToolbarFeature_Click" Tag="Gravação Automática de Sessão de Suporte"/>
-                    <Button Content="☰" Width="32" Height="28" Margin="4,0,0,0" Background="Transparent" BorderThickness="0" FontSize="15" Foreground="#4C4C4C" Cursor="Hand" ToolTip="Configurações do ColiseuDesk" Click="OpenVpsModal_Click"/>
+                    <Button Content="⏺ Gravar Sessão" Padding="10,4" Margin="2,0" Background="Transparent" BorderBrush="#D0D7DE" BorderThickness="1" Foreground="#4C4C4C" FontSize="11.5" Cursor="Hand" ToolTip="Gravar Sessão de Suporte" Click="ToolbarFeature_Click" Tag="Gravação de Sessão de Suporte"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -132,7 +133,7 @@
         <Grid Grid.Row="2" Margin="22,18">
             <Grid.ColumnDefinitions>
                 <!-- Coluna Esquerda: Este Computador (Receber Suporte) -->
-                <ColumnDefinition Width="370"/>
+                <ColumnDefinition Width="380"/>
                 <ColumnDefinition Width="20"/>
                 <!-- Coluna Direita: Dar Suporte / Conectar ao Cliente -->
                 <ColumnDefinition Width="*"/>
@@ -142,10 +143,10 @@
             <Border Grid.Column="0" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,20">
                 <StackPanel>
                     <!-- Logo Oficial Coliseu Sistemas -->
-                    <Image Source="pack://application:,,,/Assets/logo-coliseu.png" Height="58" HorizontalAlignment="Left" Margin="0,0,0,14"/>
+                    <Image Source="pack://application:,,,/Assets/logo-coliseu.png" Height="56" HorizontalAlignment="Left" Margin="0,0,0,14"/>
 
                     <TextBlock Text="Este Computador (Receber Suporte)" FontSize="15" FontWeight="Bold" Foreground="#222222"/>
-                    <TextBlock Text="Informe o seu ID abaixo para o técnico da Coliseu Sistemas conectar." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,16"/>
+                    <TextBlock Text="Informe o ID e a senha abaixo ao suporte da Coliseu Sistemas para autorizar o atendimento remoto." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,16"/>
 
                     <!-- Box do ID de 9 Dígitos -->
                     <Border Background="#F0F7FF" BorderBrush="#0072BF" BorderThickness="1.5" CornerRadius="8" Padding="16,12" Margin="0,0,0,14">
@@ -183,22 +184,22 @@
                     <!-- Acesso Não Supervisionado (Senha Fixa) -->
                     <Border Background="#F4F7FA" CornerRadius="8" Padding="14,12">
                         <StackPanel>
-                            <TextBlock Text="🔑 Acesso Não Supervisionado (Senha Fixa)" FontWeight="SemiBold" FontSize="13" Foreground="#333333"/>
-                            <TextBlock Text="Permite acessar este computador a qualquer hora sem ninguém precisar aceitar." FontSize="11.5" Foreground="#666666" TextWrapping="Wrap" Margin="0,3,0,10"/>
+                            <TextBlock Text="🔑 Acesso Permanente (Senha Fixa)" FontWeight="SemiBold" FontSize="13" Foreground="#333333"/>
+                            <TextBlock Text="Opcional: defina uma senha fixa para permitir o acesso rápido sem confirmação manual." FontSize="11.5" Foreground="#666666" TextWrapping="Wrap" Margin="0,3,0,10"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <PasswordBox x:Name="FixedPasswordBox" Grid.Column="0" Height="32" VerticalContentAlignment="Center" Padding="8,0" Margin="0,0,8,0"/>
-                                <Button Grid.Column="1" Content="Salvar Senha Fixa" Background="#0094D2" Foreground="White" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="SaveFixedPassword_Click"/>
+                                <Button Grid.Column="1" Content="Definir Senha" Background="#0094D2" Foreground="White" BorderThickness="0" Padding="12,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="SaveFixedPassword_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>
             </Border>
 
-            <!-- CARD DIREITO: DAR SUPORTE A UM CLIENTE (CONEXÃO REMOTA + LISTA DE CLIENTES) -->
+            <!-- CARD DIREITO: DAR SUPORTE A UM CLIENTE (CONEXÃO REMOTA + HISTÓRICO) -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -206,7 +207,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- Painel Superior Direito: Conectar ao Cliente -->
+                <!-- Painel Superior Direito: Conectar a outro Computador -->
                 <Border Grid.Row="0" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,18">
                     <StackPanel>
                         <Grid>
@@ -214,12 +215,12 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="Controlar um Computador Remoto (Dar Suporte)" FontSize="16" FontWeight="Bold" Foreground="#0072BF"/>
-                                <TextBlock Text="Digite o ID ColiseuDesk de 9 dígitos do seu cliente para iniciar o acesso com som e arquivos." FontSize="12" Foreground="#666666" Margin="0,3,0,12"/>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Text="Acessar Outro Computador" FontSize="16" FontWeight="Bold" Foreground="#0072BF"/>
+                                <TextBlock Text="Digite o ID ColiseuDesk de 9 dígitos do computador remoto para iniciar o controle de tela, áudio ou envio de arquivos." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,14"/>
                             </StackPanel>
                             <Border Grid.Column="1" Background="#E8F4FC" CornerRadius="6" Padding="10,4" VerticalAlignment="Top">
-                                <TextBlock Text="Motor RustDesk Turbo" FontSize="11" FontWeight="Bold" Foreground="#0072BF"/>
+                                <TextBlock Text="🔒 Alta Performance" FontSize="11" FontWeight="Bold" Foreground="#0072BF"/>
                             </Border>
                         </Grid>
 
@@ -230,7 +231,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBox x:Name="MainRemoteIdBox" Grid.Column="0" Text="302 594 014" Height="42" FontSize="18" FontWeight="Bold" VerticalContentAlignment="Center" Padding="12,0" BorderBrush="#0072BF" BorderThickness="1.5" KeyDown="MainRemoteIdBox_KeyDown"/>
+                            <TextBox x:Name="MainRemoteIdBox" Grid.Column="0" Text="" Height="42" FontSize="18" FontWeight="Bold" VerticalContentAlignment="Center" Padding="12,0" BorderBrush="#0072BF" BorderThickness="1.5" ToolTip="Digite o ID de 9 dígitos" KeyDown="MainRemoteIdBox_KeyDown"/>
 
                             <Button Grid.Column="1" Content="⚡ Conectar" Height="42" Margin="10,0,0,0" Padding="22,0" Background="#0072BF" Foreground="White" BorderThickness="0" FontSize="14" FontWeight="Bold" Cursor="Hand" Click="ConnectMain_Click"/>
 
@@ -239,7 +240,7 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Painel Inferior Direito: Computadores de Clientes Salvos / Recentes -->
+                <!-- Painel Inferior Direito: Computadores Recentes / Favoritos -->
                 <Border Grid.Row="2" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,18">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -252,9 +253,16 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Clientes Coliseu Sistemas (Recentes e Favoritos)" FontSize="14" FontWeight="Bold" Foreground="#333333"/>
-                            <Button Grid.Column="1" Content="+ Adicionar Cliente" Background="Transparent" BorderBrush="#0072BF" BorderThickness="1" Foreground="#0072BF" Padding="10,3" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="AddFavoriteClient_Click"/>
+                            <TextBlock Grid.Column="0" Text="Conexões Recentes e Favoritos" FontSize="14" FontWeight="Bold" Foreground="#333333"/>
+                            <Button Grid.Column="1" Content="+ Salvar ID Atual" Background="Transparent" BorderBrush="#0072BF" BorderThickness="1" Foreground="#0072BF" Padding="10,3" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="AddFavoriteClient_Click"/>
                         </Grid>
+
+                        <!-- Mensagem quando não há histórico neste PC -->
+                        <StackPanel x:Name="EmptyHistoryPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="🖥" FontSize="32" HorizontalAlignment="Center" Foreground="#BFCBD9" Margin="0,0,0,6"/>
+                            <TextBlock Text="Nenhuma conexão recente realizada a partir deste computador." FontSize="13" Foreground="#777777" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Os computadores que você acessar aparecerão listados aqui para conexão rápida." FontSize="11.5" Foreground="#999999" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                        </StackPanel>
 
                         <ListBox x:Name="ClientsListBox" Grid.Row="1" BorderThickness="0" Background="Transparent" HorizontalContentAlignment="Stretch" MouseDoubleClick="ClientsListBox_MouseDoubleClick">
                             <ListBox.ItemTemplate>
@@ -306,32 +314,28 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse x:Name="StatusDot" Width="9" Height="9" Fill="#1B873F" Margin="0,0,8,0"/>
-                    <TextBlock x:Name="StatusTextBlock" Text="Pronto para conexões (Motor RustDesk Integrado)" FontSize="12" Foreground="#444444"/>
+                    <TextBlock x:Name="StatusTextBlock" Text="Pronto para conexões (Rede Coliseu Sistemas Online)" FontSize="12" Foreground="#444444"/>
                 </StackPanel>
-                <TextBlock Grid.Column="2" Text="ColiseuDesk v1.0 • Desenvolvido para Coliseu Sistemas" FontSize="11.5" Foreground="#888888" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="ColiseuDesk v1.0 • Coliseu Sistemas" FontSize="11.5" Foreground="#888888" VerticalAlignment="Center"/>
             </Grid>
         </Border>
 
-        <!-- ==================== MODAL DE CONFIGURAÇÃO DA VPS (HBBS / HBBR) ==================== -->
+        <!-- ==================== PAINEL TÉCNICO OCULTO (Apenas via atalho secreto Ctrl+Shift+F12) ==================== -->
         <Grid x:Name="VpsModalOverlay" Grid.RowSpan="4" Background="#88000000" Visibility="Collapsed">
-            <Border Width="520" VerticalAlignment="Center" HorizontalAlignment="Center" Background="White" CornerRadius="10" Padding="26,22">
+            <Border Width="500" VerticalAlignment="Center" HorizontalAlignment="Center" Background="White" CornerRadius="10" Padding="26,22">
                 <StackPanel>
-                    <TextBlock Text="⚙ Configurar Servidor VPS (ColiseuDesk Server)" FontSize="17" FontWeight="Bold" Foreground="#0072BF"/>
-                    <TextBlock Text="Insira o IP/Domínio da sua VPS e a Chave Pública (id_ed25519.pub) gerada pelo Docker Compose." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,16"/>
+                    <TextBlock Text="🔧 Painel Técnico Interno — Coliseu Sistemas" FontSize="16" FontWeight="Bold" Foreground="#0072BF"/>
+                    <TextBlock Text="Configuração interna de infraestrutura (oculta para clientes finais)." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,16"/>
 
-                    <TextBlock Text="Endereço IP ou Domínio da VPS (RENDEZVOUS_SERVER):" FontWeight="SemiBold" FontSize="12.5" Foreground="#333333"/>
+                    <TextBlock Text="Servidor de Conexão (Host):" FontWeight="SemiBold" FontSize="12.5" Foreground="#333333"/>
                     <TextBox x:Name="VpsHostInput" Height="34" Margin="0,4,0,12" Padding="8,0" VerticalContentAlignment="Center" FontSize="13"/>
 
-                    <TextBlock Text="Chave Pública Criptográfica da VPS (RS_PUB_KEY):" FontWeight="SemiBold" FontSize="12.5" Foreground="#333333"/>
+                    <TextBlock Text="Chave Pública (Ed25519):" FontWeight="SemiBold" FontSize="12.5" Foreground="#333333"/>
                     <TextBox x:Name="VpsKeyInput" Height="34" Margin="0,4,0,16" Padding="8,0" VerticalContentAlignment="Center" FontSize="13" FontFamily="Consolas"/>
 
-                    <Border Background="#F0F7FF" CornerRadius="6" Padding="12,10" Margin="0,0,0,16">
-                        <TextBlock Text="💡 Ao salvar, o ColiseuDesk grava automaticamente essas credenciais no motor RustDesk (RustDesk2.toml) para conexões diretas e criptografadas." FontSize="11.5" Foreground="#005A99" TextWrapping="Wrap"/>
-                    </Border>
-
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="Cancelar" Width="100" Height="34" Margin="0,0,10,0" Background="#E4E9F0" Foreground="#333333" BorderThickness="0" Cursor="Hand" Click="CloseVpsModal_Click"/>
-                        <Button Content="Salvar e Aplicar na Hora" Width="180" Height="34" Background="#0072BF" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="SaveVpsConfig_Click"/>
+                        <Button Content="Fechar" Width="100" Height="34" Margin="0,0,10,0" Background="#E4E9F0" Foreground="#333333" BorderThickness="0" Cursor="Hand" Click="CloseVpsModal_Click"/>
+                        <Button Content="Salvar" Width="140" Height="34" Background="#0072BF" Foreground="White" FontWeight="Bold" BorderThickness="0" Cursor="Hand" Click="SaveVpsConfig_Click"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

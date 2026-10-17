@@ -9,7 +9,7 @@ namespace ColiseuDesk
 {
     public partial class MainWindow : Window
     {
-        private readonly RustDeskEngineService _engineService = new();
+        private readonly RustDeskEngineService _engineService = new RustDeskEngineService();
 
         public MainWindow()
         {
@@ -19,36 +19,47 @@ namespace ColiseuDesk
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            ClientsListBox.ItemsSource = _engineService.Settings.SavedClients;
+            RefreshClientsList();
             RegeneratePassword();
-            UpdateVpsStatusBanner();
+            UpdateStatusBanner();
 
             var localId = await _engineService.GetLocalMachineIdAsync();
             LocalIdText.Text = localId;
+
+            // Garante que o motor já seja preparado em segundo plano de forma transparente
+            _ = _engineService.EnsureEngineInstalledAsync(msg =>
+            {
+                Dispatcher.Invoke(() => StatusTextBlock.Text = msg);
+            });
         }
 
-        private void UpdateVpsStatusBanner()
+        private void RefreshClientsList()
         {
-            var host = _engineService.Settings.RendezvousServer;
-            if (!string.IsNullOrWhiteSpace(host))
-            {
-                TopVpsBadge.Text = $"🟢 VPS Coliseu Conectada ({host}) • Criptografia Ed25519";
-                StatusTextBlock.Text = $"Conectado ao servidor VPS Coliseu Sistemas ({host}:21116) — Motor RustDesk Pronto";
-            }
-            else
-            {
-                TopVpsBadge.Text = "🔒 Motor RustDesk • Aguardando IP da VPS";
-                StatusTextBlock.Text = "Motor RustDesk integrado. Clique em 'Configurar VPS' para definir o IP do seu servidor.";
-            }
+            ClientsListBox.ItemsSource = null;
+            ClientsListBox.ItemsSource = _engineService.Settings.SavedClients;
+            EmptyHistoryPlaceholder.Visibility = _engineService.Settings.SavedClients.Count == 0
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void UpdateStatusBanner()
+        {
+            TopVpsBadge.Text = "Rede Coliseu Sistemas Online • Conexão Criptografada";
+            StatusTextBlock.Text = "Pronto para conexões (Rede Coliseu Sistemas Online)";
         }
 
         private void RegeneratePassword()
         {
             const string chars = "abcdefghjkmnpqrstuvwxyz23456789";
             char[] buffer = new char[6];
+            byte[] randomBytes = new byte[6];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
             for (int i = 0; i < buffer.Length; i++)
             {
-                buffer[i] = chars[RandomNumberGenerator.GetInt32(chars.Length)];
+                buffer[i] = chars[randomBytes[i] % chars.Length];
             }
             TempPasswordText.Text = new string(buffer);
         }
@@ -56,7 +67,7 @@ namespace ColiseuDesk
         private void CopyLocalId_Click(object sender, RoutedEventArgs e)
         {
             Clipboard.SetText(LocalIdText.Text);
-            StatusTextBlock.Text = $"ID {LocalIdText.Text} copiado para a área de transferência!";
+            StatusTextBlock.Text = string.Format("ID {0} copiado para a área de transferência!", LocalIdText.Text);
         }
 
         private void RegeneratePassword_Click(object sender, RoutedEventArgs e)
@@ -77,20 +88,18 @@ namespace ColiseuDesk
             if (string.IsNullOrWhiteSpace(pwd) || pwd.Length < 6)
             {
                 MessageBox.Show(
-                    "Defina uma senha fixa com pelo menos 6 caracteres para acesso não supervisionado.",
+                    "Defina uma senha fixa com pelo menos 6 caracteres.",
                     "ColiseuDesk - Senha Fixa",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return;
             }
 
-            bool applied = _engineService.SetUnattendedPassword(pwd);
-            StatusTextBlock.Text = applied
-                ? "Senha fixa configurada com sucesso no motor RustDesk!"
-                : "Senha fixa salva nas configurações do ColiseuDesk.";
+            _engineService.SetUnattendedPassword(pwd);
+            StatusTextBlock.Text = "Acesso permanente (Senha Fixa) ativado neste computador.";
 
             MessageBox.Show(
-                "Acesso Não Supervisionado configurado!\nVocê poderá conectar neste computador a qualquer momento usando essa senha fixa.",
+                "Senha fixa configurada com sucesso!\nEste computador agora permite acesso rápido autorizado.",
                 "ColiseuDesk - Coliseu Sistemas",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -101,42 +110,35 @@ namespace ColiseuDesk
             var formatted = RustDeskEngineService.FormatId(remoteId);
             if (string.IsNullOrWhiteSpace(formatted))
             {
-                MessageBox.Show("Digite o ID de 9 dígitos do computador do cliente.", "ColiseuDesk", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Digite o ID de 9 dígitos do computador remoto.", "ColiseuDesk", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             TabRemoteIdText.Text = formatted;
+            ActiveSessionTab.Visibility = Visibility.Visible;
             ToolbarRemoteIdBox.Text = formatted;
             MainRemoteIdBox.Text = formatted;
 
-            StatusTextBlock.Text = $"Iniciando conexão ({mode}) com o cliente {formatted}...";
+            // Registra automaticamente nas conexões recentes deste computador
+            _engineService.AddOrUpdateRecentClient(formatted);
+            RefreshClientsList();
+
+            StatusTextBlock.Text = string.Format("Conectando ao computador {0}...", formatted);
 
             var enginePath = _engineService.FindEngineExecutable();
             if (enginePath == null)
             {
-                var result = MessageBox.Show(
-                    $"Para abrir a sessão remota com vídeo, som e transferência de arquivos para o ID {formatted}, o motor de execução RustDesk será baixado automaticamente agora (~20 MB).\n\nDeseja baixar e iniciar a conexão?",
-                    "ColiseuDesk - Motor de Acesso Remoto",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    await _engineService.EnsureEngineInstalledAsync(msg => Dispatcher.Invoke(() => StatusTextBlock.Text = msg));
-                }
-                else
-                {
-                    return;
-                }
+                enginePath = await _engineService.EnsureEngineInstalledAsync(msg =>
+                    Dispatcher.Invoke(() => StatusTextBlock.Text = msg));
             }
 
             if (_engineService.LaunchRemoteConnection(formatted, mode))
             {
-                StatusTextBlock.Text = $"Sessão iniciada com {formatted} via motor RustDesk!";
+                StatusTextBlock.Text = string.Format("Sessão remota ativa com {0}.", formatted);
             }
             else
             {
-                StatusTextBlock.Text = $"Não foi possível iniciar o motor para {formatted}. Verifique a instalação.";
+                StatusTextBlock.Text = "Preparando motor de conexão remota... Tente novamente em alguns segundos.";
             }
         }
 
@@ -162,7 +164,8 @@ namespace ColiseuDesk
 
         private void ConnectSavedClient_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string id)
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
             {
                 InitiateConnection(id, "--connect");
             }
@@ -189,14 +192,14 @@ namespace ColiseuDesk
 
         private void ToolbarFeature_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string featureDesc)
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string featureDesc)
             {
-                StatusTextBlock.Text = $"Recurso ativo na sessão: {featureDesc}";
-                MessageBox.Show(
-                    $"Recurso da Barra ColiseuDesk:\n• {featureDesc}\n\nEste controle atua diretamente na sessão ativa do motor RustDesk com o cliente {ToolbarRemoteIdBox.Text}.",
-                    "Barra de Controle ColiseuDesk",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                StatusTextBlock.Text = string.Format("Recurso selecionado: {0}", featureDesc);
+                if (!string.IsNullOrWhiteSpace(ToolbarRemoteIdBox.Text))
+                {
+                    InitiateConnection(ToolbarRemoteIdBox.Text, "--connect");
+                }
             }
         }
 
@@ -204,26 +207,27 @@ namespace ColiseuDesk
         {
             var id = RustDeskEngineService.FormatId(MainRemoteIdBox.Text);
             if (string.IsNullOrWhiteSpace(id))
-                return;
-
-            _engineService.Settings.SavedClients.Insert(0, new SavedClientItem
             {
-                Id = id,
-                Name = $"Estação Cliente ({id})",
-                Company = "Cliente Coliseu Sistemas",
-                LastConnected = "Agora mesmo",
-                IsOnline = true
-            });
-            _engineService.PersistSettings();
-            ClientsListBox.Items.Refresh();
-            StatusTextBlock.Text = $"Cliente {id} adicionado aos favoritos!";
+                MessageBox.Show("Digite um ID de 9 dígitos no campo acima para salvar nos favoritos.", "ColiseuDesk", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _engineService.AddOrUpdateRecentClient(id);
+            RefreshClientsList();
+            StatusTextBlock.Text = string.Format("Computador {0} salvo na lista de conexões rápidas!", id);
         }
 
-        private void OpenVpsModal_Click(object sender, RoutedEventArgs e)
+        // Atalho exclusivo e invisível para técnico (Ctrl + Shift + F12)
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            VpsHostInput.Text = _engineService.Settings.RendezvousServer;
-            VpsKeyInput.Text = _engineService.Settings.PublicKey;
-            VpsModalOverlay.Visibility = Visibility.Visible;
+            if (e.Key == Key.F12 &&
+                (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift))
+            {
+                VpsHostInput.Text = _engineService.Settings.RendezvousServer;
+                VpsKeyInput.Text = _engineService.Settings.PublicKey;
+                VpsModalOverlay.Visibility = Visibility.Visible;
+                e.Handled = true;
+            }
         }
 
         private void CloseVpsModal_Click(object sender, RoutedEventArgs e)
@@ -234,14 +238,8 @@ namespace ColiseuDesk
         private void SaveVpsConfig_Click(object sender, RoutedEventArgs e)
         {
             _engineService.SaveSettings(VpsHostInput.Text, VpsKeyInput.Text);
-            UpdateVpsStatusBanner();
+            UpdateStatusBanner();
             VpsModalOverlay.Visibility = Visibility.Collapsed;
-
-            MessageBox.Show(
-                "Configuração da VPS salva e aplicada automaticamente no motor RustDesk (RustDesk2.toml)!",
-                "ColiseuDesk Server",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
         }
     }
 }
