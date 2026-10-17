@@ -174,7 +174,7 @@
                                 <TextBlock x:Name="TempPasswordText" Text="c9x4k2" FontSize="20" FontWeight="Bold" Foreground="#333333" FontFamily="Consolas" Margin="0,3,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Content="🔄" Width="32" Height="30" Margin="0,0,6,0" Background=" White" BorderBrush="#CFD8E3" BorderThickness="1" Cursor="Hand" ToolTip="Gerar nova senha temporária" Click="RegeneratePassword_Click"/>
+                                <Button Content="🔄" Width="32" Height="30" Margin="0,0,6,0" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Cursor="Hand" ToolTip="Gerar nova senha temporária" Click="RegeneratePassword_Click"/>
                                 <Button Content="Copiar" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Padding="10,5" FontSize="12" Cursor="Hand" Click="CopyPassword_Click"/>
                             </StackPanel>
                         </Grid>

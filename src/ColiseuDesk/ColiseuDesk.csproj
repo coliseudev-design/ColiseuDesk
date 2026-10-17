@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>ColiseuDesk</AssemblyName>
     <RootNamespace>ColiseuDesk</RootNamespace>
-    <ApplicationIcon>..\..\assets\icon.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
     <Version>1.0.0</Version>
     <Company>Coliseu Sistemas</Company>
     <Product>ColiseuDesk - Acesso Remoto</Product>
@@ -17,9 +17,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\assets\logo-coliseu.png" Link="Assets\logo-coliseu.png" />
-    <Resource Include="..\..\assets\icon.png" Link="Assets\icon.png" />
-    <Resource Include="..\..\assets\icon.ico" Link="Assets\icon.ico" />
+    <Resource Include="Assets\logo-coliseu.png" />
+    <Resource Include="Assets\icon.png" />
+    <Resource Include="Assets\icon.ico" />
     <Content Include="..\..\config\coliseudesk.json" Link="coliseudesk.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
