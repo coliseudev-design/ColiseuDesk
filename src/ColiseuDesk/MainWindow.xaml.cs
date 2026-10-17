@@ -1,4 +1,5 @@
 using System;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,10 +14,12 @@ namespace ColiseuDesk
     {
         private readonly RustDeskEngineService _engineService = new RustDeskEngineService();
         private readonly DispatcherTimer _statusTimer = new DispatcherTimer();
+        private readonly ObservableCollection<string> _openSessionTabs = new ObservableCollection<string>();
 
         public MainWindow()
         {
             InitializeComponent();
+            SessionTabsControl.ItemsSource = _openSessionTabs;
             Loaded += MainWindow_Loaded;
         }
 
@@ -127,15 +130,18 @@ namespace ColiseuDesk
                 return;
             }
 
-            TabRemoteIdText.Text = formatted;
-            ActiveSessionTab.Visibility = Visibility.Visible;
+            if (!_openSessionTabs.Contains(formatted))
+            {
+                _openSessionTabs.Add(formatted);
+            }
+
             ToolbarRemoteIdBox.Text = formatted;
             MainRemoteIdBox.Text = formatted;
 
             _engineService.AddOrUpdateRecentClient(formatted);
             RefreshClientsList();
 
-            StatusTextBlock.Text = string.Format("Iniciando conexão com {0}...", formatted);
+            StatusTextBlock.Text = string.Format("Iniciando conexão simultânea com {0} ({1} sessão(ões) ativa(s))...", formatted, _openSessionTabs.Count);
 
             if (_engineService.FindExtractedRuntimeExecutable() == null)
             {
@@ -145,11 +151,31 @@ namespace ColiseuDesk
 
             if (_engineService.LaunchRemoteConnection(formatted, mode))
             {
-                StatusTextBlock.Text = string.Format("Sessão remota iniciada com {0}.", formatted);
+                StatusTextBlock.Text = string.Format("Sessão remota iniciada com {0} ({1} aba(s) aberta(s)).", formatted, _openSessionTabs.Count);
             }
             else
             {
                 StatusTextBlock.Text = "Aguarde a conclusão da inicialização do motor e tente novamente.";
+            }
+        }
+
+        private void SelectSessionTab_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
+            {
+                ToolbarRemoteIdBox.Text = id;
+                MainRemoteIdBox.Text = id;
+                InitiateConnection(id, "--connect");
+            }
+        }
+
+        private void CloseSessionTab_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
+            {
+                _openSessionTabs.Remove(id);
             }
         }
 
@@ -182,6 +208,15 @@ namespace ColiseuDesk
             }
         }
 
+        private void FileTransferSavedClient_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            if (btn != null && btn.Tag is string id)
+            {
+                InitiateConnection(id, "--file-transfer");
+            }
+        }
+
         private void ClientsListBox_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (ClientsListBox.SelectedItem is SavedClientItem item)
@@ -190,15 +225,10 @@ namespace ColiseuDesk
             }
         }
 
-        private void ActiveSessionTab_Click(object sender, MouseButtonEventArgs e)
-        {
-            InitiateConnection(TabRemoteIdText.Text, "--connect");
-        }
-
         private void FocusRemoteInput_Click(object sender, RoutedEventArgs e)
         {
+            MainRemoteIdBox.Clear();
             MainRemoteIdBox.Focus();
-            MainRemoteIdBox.SelectAll();
         }
 
         private void ToolbarFeature_Click(object sender, RoutedEventArgs e)

@@ -11,7 +11,7 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <!-- Row 0: Barra de Abas estilo AnyDesk -->
+            <!-- Row 0: Barra de Múltiplas Abas estilo AnyDesk -->
             <RowDefinition Height="38"/>
             <!-- Row 1: Barra de Ferramentas de Sessão Remota estilo AnyDesk -->
             <RowDefinition Height="44"/>
@@ -21,7 +21,7 @@
             <RowDefinition Height="32"/>
         </Grid.RowDefinitions>
 
-        <!-- ==================== ROW 0: BARRA DE ABAS (ESTILO ANYDESK) ==================== -->
+        <!-- ==================== ROW 0: BARRA DE MÚLTIPLAS ABAS (ESTILO ANYDESK) ==================== -->
         <Border Grid.Row="0" Background="#E4E9F0" BorderBrush="#CFD8E3" BorderThickness="0,0,0,1">
             <Grid Margin="10,0">
                 <Grid.ColumnDefinitions>
@@ -30,29 +30,44 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Marca Compacta + Abas -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Bottom">
-                    <!-- Aba Home / Painel Principal -->
-                    <Border Background="#FFFFFF" CornerRadius="6,6,0,0" Padding="14,7" Margin="0,4,4,0" BorderBrush="#CFD8E3" BorderThickness="1,1,1,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Image Source="pack://application:,,,/Assets/icon.png" Width="18" Height="18" Margin="0,0,8,0"/>
-                            <TextBlock Text="Nova Sessão" FontWeight="SemiBold" Foreground="#0072BF" FontSize="13"/>
-                        </StackPanel>
-                    </Border>
+                <!-- Aba Fixa: Nova Sessão -->
+                <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="6,6,0,0" Padding="14,7" Margin="0,4,4,0" BorderBrush="#CFD8E3" BorderThickness="1,1,1,0" Cursor="Hand" MouseLeftButtonUp="FocusRemoteInput_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <Image Source="pack://application:,,,/Assets/icon.png" Width="18" Height="18" Margin="0,0,8,0"/>
+                        <TextBlock Text="Nova Sessão" FontWeight="SemiBold" Foreground="#0072BF" FontSize="13"/>
+                    </StackPanel>
+                </Border>
 
-                    <!-- Aba de Sessão Ativa (Aparece quando conecta) -->
-                    <Border x:Name="ActiveSessionTab" Visibility="Collapsed" Background="#DCE3EC" CornerRadius="6,6,0,0" Padding="12,7" Margin="0,6,4,0" Cursor="Hand" MouseLeftButtonUp="ActiveSessionTab_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="🖥" Foreground="#4C4C4C" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TabRemoteIdText" Text="" Foreground="#333333" FontSize="12.5" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                <!-- Lista Dinâmica de Múltiplas Abas de Clientes Conectados + Botão [+] -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <ItemsControl x:Name="SessionTabsControl">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#DCE3EC" CornerRadius="6,6,0,0" Padding="10,6" Margin="0,6,4,0" BorderBrush="#C5D0DC" BorderThickness="1,1,1,0" Cursor="Hand">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Background="Transparent" BorderThickness="0" Padding="0" Cursor="Hand" Tag="{Binding}" Click="SelectSessionTab_Click" ToolTip="Reconectar ou focar nesta sessão">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🖥" Foreground="#0072BF" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding}" Foreground="#222222" FontWeight="SemiBold" FontSize="12.5" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Content="✕" Background="Transparent" BorderThickness="0" Foreground="#666666" FontSize="11" FontWeight="Bold" Margin="8,0,0,0" Padding="3,0" Cursor="Hand" Tag="{Binding}" Click="CloseSessionTab_Click" ToolTip="Fechar aba"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
                     <!-- Botão + Nova Conexão -->
-                    <Button Content="+" Width="28" Height="26" Margin="2,6,0,0" Background="Transparent" BorderThickness="0" FontSize="16" FontWeight="Bold" Foreground="#4C4C4C" Cursor="Hand" ToolTip="Nova conexão" Click="FocusRemoteInput_Click"/>
+                    <Button Content="+" Width="28" Height="26" Margin="2,6,0,0" Background="Transparent" BorderThickness="0" FontSize="16" FontWeight="Bold" Foreground="#4C4C4C" Cursor="Hand" ToolTip="Abrir mais uma conexão simultânea" Click="FocusRemoteInput_Click"/>
                 </StackPanel>
 
-                <!-- Selo Corporativo Limpo no Topo Direito (Sem mostrar IP ou VPS para o cliente) -->
+                <!-- Selo Corporativo Limpo no Topo Direito -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <Border Background="#E8F5E9" BorderBrush="#C8E6C9" BorderThickness="1" CornerRadius="12" Padding="12,4">
                         <StackPanel Orientation="Horizontal">
@@ -94,31 +109,16 @@
                     </Grid>
                 </Border>
 
-                <!-- Ícones de Controle da Sessão (Exatamente na ordem do print do AnyDesk) -->
+                <!-- Ícones de Controle da Sessão -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="12,0,0,0" VerticalAlignment="Center">
-                    <!-- [1] [2] Seleção de Monitor -->
                     <Button Content="1" Width="30" Height="28" Margin="2,0" Background="#D0D7DE" Foreground="#333333" FontWeight="Bold" BorderThickness="0" Cursor="Hand" ToolTip="Monitor Principal (1)" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 1)"/>
                     <Button Content="2" Width="30" Height="28" Margin="2,0,8,0" Background="Transparent" Foreground="#666666" FontWeight="SemiBold" BorderThickness="1" BorderBrush="#D0D7DE" Cursor="Hand" ToolTip="Alternar para Monitor 2" Click="ToolbarFeature_Click" Tag="Seleção de Monitor Remoto (Monitor 2)"/>
-
-                    <!-- Transferência de Arquivos -->
                     <Button Content="📂" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Transferência de Arquivos" Click="FileTransferFromToolbar_Click"/>
-
-                    <!-- Chat ao Vivo -->
                     <Button Content="💬" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Chat com o Cliente" Click="ToolbarFeature_Click" Tag="Chat Integrado"/>
-
-                    <!-- Ações Rápidas (Raio: Ctrl+Alt+Del, Reiniciar, Screenshot) -->
                     <Button Content="⚡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Ações do Sistema (Enviar Ctrl+Alt+Del, Elevar Permissão, Reiniciar)" Click="ToolbarFeature_Click" Tag="Ações do Sistema (Ctrl+Alt+Del, Elevar como Administrador, Reiniciar)"/>
-
-                    <!-- Teclado -->
                     <Button Content="⌨" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Teclado e Área de Transferência" Click="ToolbarFeature_Click" Tag="Mapeamento de Teclado e Sincronização de Ctrl+C / Ctrl+V"/>
-
-                    <!-- Qualidade de Imagem e Som -->
                     <Button Content="🖥" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Modo de Exibição (Tela Cheia, Qualidade de Imagem, Som)" Click="ToolbarFeature_Click" Tag="Ajuste de Qualidade de Imagem e Transmissão de Som"/>
-
-                    <!-- Escudo de Permissões -->
                     <Button Content="🛡" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Permissões de Segurança (Bloquear teclado/mouse do cliente)" Click="ToolbarFeature_Click" Tag="Permissões da Sessão (Bloquear Entrada / Modo Privacidade)"/>
-
-                    <!-- Caneta / Quadro Branco -->
                     <Button Content="✏" Width="32" Height="28" Margin="2,0" Background="Transparent" BorderThickness="0" FontSize="14" Cursor="Hand" ToolTip="Quadro Branco (Desenhar e Apontar na Tela)" Click="ToolbarFeature_Click" Tag="Quadro Branco (Desenhar na Tela em Tempo Real)"/>
                 </StackPanel>
 
@@ -132,17 +132,14 @@
         <!-- ==================== ROW 2: PAINEL PRINCIPAL COLISEU SISTEMAS ==================== -->
         <Grid Grid.Row="2" Margin="22,18">
             <Grid.ColumnDefinitions>
-                <!-- Coluna Esquerda: Este Computador (Receber Suporte) -->
                 <ColumnDefinition Width="380"/>
                 <ColumnDefinition Width="20"/>
-                <!-- Coluna Direita: Dar Suporte / Conectar ao Cliente -->
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- CARD ESQUERDO: ESTE COMPUTADOR (ID E SENHA DO CLIENTE) -->
             <Border Grid.Column="0" Background="White" CornerRadius="10" BorderBrush="#DCE3EC" BorderThickness="1" Padding="24,20">
                 <StackPanel>
-                    <!-- Logo Oficial Coliseu Sistemas -->
                     <Image Source="pack://application:,,,/Assets/logo-coliseu.png" Height="56" HorizontalAlignment="Left" Margin="0,0,0,14"/>
 
                     <TextBlock Text="Este Computador (Receber Suporte)" FontSize="15" FontWeight="Bold" Foreground="#222222"/>
@@ -157,7 +154,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="SEU ID COLISEUDESK" FontSize="10.5" FontWeight="Bold" Foreground="#0072BF"/>
-                                <TextBlock x:Name="LocalIdText" Text="Carregando..." FontSize="26" FontWeight="Bold" Foreground="#004C80" Margin="0,2,0,0"/>
+                                <TextBlock x:Name="LocalIdText" Text="Sincronizando..." FontSize="26" FontWeight="Bold" Foreground="#004C80" Margin="0,2,0,0"/>
                             </StackPanel>
                             <Button Grid.Column="1" Content="📋 Copiar" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="12,7" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="CopyLocalId_Click"/>
                         </Grid>
@@ -172,7 +169,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
                                 <TextBlock Text="SENHA TEMPORÁRIA DE SESSÃO" FontSize="10.5" FontWeight="Bold" Foreground="#666666"/>
-                                <TextBlock x:Name="TempPasswordText" Text="c9x4k2" FontSize="20" FontWeight="Bold" Foreground="#333333" FontFamily="Consolas" Margin="0,3,0,0"/>
+                                <TextBlock x:Name="TempPasswordText" Text="......" FontSize="20" FontWeight="Bold" Foreground="#333333" FontFamily="Consolas" Margin="0,3,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Button Content="🔄" Width="32" Height="30" Margin="0,0,6,0" Background="White" BorderBrush="#CFD8E3" BorderThickness="1" Cursor="Hand" ToolTip="Gerar nova senha temporária" Click="RegeneratePassword_Click"/>
@@ -199,7 +196,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- CARD DIREITO: DAR SUPORTE A UM CLIENTE (CONEXÃO REMOTA + HISTÓRICO) -->
+            <!-- CARD DIREITO: DAR SUPORTE A UM CLIENTE (MÚLTIPLAS SESSÕES SIMULTÂNEAS) -->
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -216,11 +213,11 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                <TextBlock Text="Acessar Outro Computador" FontSize="16" FontWeight="Bold" Foreground="#0072BF"/>
-                                <TextBlock Text="Digite o ID ColiseuDesk de 9 dígitos do computador remoto para iniciar o controle de tela, áudio ou envio de arquivos." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,14"/>
+                                <TextBlock Text="Acessar Outro Computador (Multi-Sessão)" FontSize="16" FontWeight="Bold" Foreground="#0072BF"/>
+                                <TextBlock Text="Digite o ID ColiseuDesk de 9 dígitos. Você pode abrir quantas conexões simultâneas quiser ao mesmo tempo." FontSize="12" Foreground="#666666" TextWrapping="Wrap" Margin="0,4,0,14"/>
                             </StackPanel>
                             <Border Grid.Column="1" Background="#E8F4FC" CornerRadius="6" Padding="10,4" VerticalAlignment="Top">
-                                <TextBlock Text="🔒 Alta Performance" FontSize="11" FontWeight="Bold" Foreground="#0072BF"/>
+                                <TextBlock Text="🔒 Sessões Ilimitadas" FontSize="11" FontWeight="Bold" Foreground="#0072BF"/>
                             </Border>
                         </Grid>
 
@@ -257,7 +254,6 @@
                             <Button Grid.Column="1" Content="+ Salvar ID Atual" Background="Transparent" BorderBrush="#0072BF" BorderThickness="1" Foreground="#0072BF" Padding="10,3" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="AddFavoriteClient_Click"/>
                         </Grid>
 
-                        <!-- Mensagem quando não há histórico neste PC -->
                         <StackPanel x:Name="EmptyHistoryPlaceholder" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="🖥" FontSize="32" HorizontalAlignment="Center" Foreground="#BFCBD9" Margin="0,0,0,6"/>
                             <TextBlock Text="Nenhuma conexão recente realizada a partir deste computador." FontSize="13" Foreground="#777777" HorizontalAlignment="Center"/>
@@ -272,6 +268,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
@@ -293,7 +290,8 @@
                                                 </StackPanel>
                                             </StackPanel>
 
-                                            <Button Grid.Column="2" Content="Conectar" Tag="{Binding Id}" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="14,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="ConnectSavedClient_Click"/>
+                                            <Button Grid.Column="2" Content="📂 Arquivos" Tag="{Binding Id}" VerticalAlignment="Center" Background="#F0F7FF" Foreground="#0072BF" BorderBrush="#BFCBD9" BorderThickness="1" Padding="10,6" Margin="0,0,6,0" FontSize="11.5" FontWeight="SemiBold" Cursor="Hand" Click="FileTransferSavedClient_Click"/>
+                                            <Button Grid.Column="3" Content="Conectar" Tag="{Binding Id}" VerticalAlignment="Center" Background="#0072BF" Foreground="White" BorderThickness="0" Padding="14,6" FontSize="12" FontWeight="SemiBold" Cursor="Hand" Click="ConnectSavedClient_Click"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
