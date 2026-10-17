@@ -15,7 +15,7 @@
     "icon_svg_path": "assets/icon.svg"
   },
   "server": {
-    "rendezvous_server": "",
+    "rendezvous_server": "2.24.82.19",
     "rs_pub_key": "",
     "api_server": ""
   },
