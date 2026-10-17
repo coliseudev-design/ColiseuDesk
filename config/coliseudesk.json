@@ -16,7 +16,7 @@
   },
   "server": {
     "rendezvous_server": "2.24.82.19",
-    "rs_pub_key": "",
+    "rs_pub_key": "1p8++8VM24nZtyCrsIlylHxG4hRS5ZVRf3bkDmHaYg8=",
     "api_server": ""
   },
   "features": {

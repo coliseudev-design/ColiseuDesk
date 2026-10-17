@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       rendezvous_server:
-        description: 'IP ou Domínio da sua VPS (ex: 192.168.1.10 ou remoto.coliseu.com.br)'
+        description: 'IP ou Domínio da sua VPS (ex: 2.24.82.19)'
         required: false
-        default: ''
+        default: '2.24.82.19'
       rs_pub_key:
-        description: 'Chave Pública gerada na VPS (conteúdo de data/id_ed25519.pub)'
+        description: 'Chave Pública gerada na VPS (id_ed25519.pub)'
         required: false
-        default: ''
+        default: '1p8++8VM24nZtyCrsIlylHxG4hRS5ZVRf3bkDmHaYg8='
 
 permissions:
   contents: write

@@ -21,8 +21,8 @@ namespace ColiseuDesk.Services
 
     public class ColiseuSettings
     {
-        public string RendezvousServer { get; set; } = "";
-        public string PublicKey { get; set; } = "";
+        public string RendezvousServer { get; set; } = "2.24.82.19";
+        public string PublicKey { get; set; } = "1p8++8VM24nZtyCrsIlylHxG4hRS5ZVRf3bkDmHaYg8=";
         public string ApiServer { get; set; } = "";
         public string UnattendedPassword { get; set; } = "";
         public List<SavedClientItem> SavedClients { get; set; } = new();
