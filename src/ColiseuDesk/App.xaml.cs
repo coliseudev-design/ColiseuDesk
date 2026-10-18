@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Windows;
 
 namespace ColiseuDesk
@@ -8,20 +7,16 @@ namespace ColiseuDesk
     {
         protected override void OnStartup(StartupEventArgs e)
         {
+            DispatcherUnhandledException += (s, args) =>
+            {
+                args.Handled = true;
+            };
+
             base.OnStartup(e);
-            try
-            {
-                var win = new MainWindow();
-                MainWindow = win;
-                win.Show();
-                win.Activate();
-            }
-            catch (Exception ex)
-            {
-                var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup-error.log");
-                File.WriteAllText(logPath, ex.ToString());
-                MessageBox.Show(ex.ToString(), "ColiseuDesk Startup Error");
-            }
+            var win = new MainWindow();
+            MainWindow = win;
+            win.Show();
+            win.Activate();
         }
     }
 }
