@@ -101,8 +101,24 @@ namespace ColiseuDesk
             }
         }
 
+        private void AdaptWindowToScreenWorkArea()
+        {
+            var workArea = SystemParameters.WorkArea;
+            if (Width > workArea.Width * 0.94)
+            {
+                Width = Math.Max(MinWidth, workArea.Width * 0.94);
+            }
+            if (Height > workArea.Height * 0.92)
+            {
+                Height = Math.Max(MinHeight, workArea.Height * 0.92);
+            }
+            Left = workArea.Left + (workArea.Width - Width) / 2;
+            Top = workArea.Top + (workArea.Height - Height) / 2;
+        }
+
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            AdaptWindowToScreenWorkArea();
             InitializeSystemTrayIcon();
             RefreshClientsList();
             UpdateToolbarAndSecurityControlsUI();
