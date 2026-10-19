@@ -510,6 +510,11 @@ namespace ColiseuDesk.Services
         /// Grava as credenciais do servidor Coliseu Sistemas e as preferências de sessão
         /// nos arquivos de configuração do motor + IPC ao vivo.
         /// </summary>
+        /// <summary>
+        /// Grava as credenciais do servidor Coliseu Sistemas e aplica otimizações de Ultra-Baixa Latência
+        /// (60 FPS, H.264 GPU Hardware, DirectX VRAM Capture, P2P Direto sem Relay forçado e Cursor Local 0ms)
+        /// nos arquivos globais e individuais de cada máquina remota (peers\&lt;ID&gt;.toml).
+        /// </summary>
         public void ApplyVpsConfigToEngine()
         {
             if (string.IsNullOrWhiteSpace(Settings.RendezvousServer))
@@ -538,6 +543,10 @@ namespace ColiseuDesk.Services
                 if (!string.IsNullOrEmpty(api))
                     sb.AppendLine(string.Format("api-server = '{0}'", api));
                 sb.AppendLine("direct-server = 'Y'");
+                sb.AppendLine("av1-test = 'N'");
+                sb.AppendLine("enable-hwcodec = 'Y'");
+                sb.AppendLine("enable-directx-capture = 'Y'");
+                sb.AppendLine("codec-preference = 'h264'");
                 sb.AppendLine(string.Format("enable-keyboard = '{0}'", isFullAccess ? "Y" : "N"));
                 sb.AppendLine(string.Format("enable-file-transfer = '{0}'", isFullAccess ? "Y" : "N"));
                 sb.AppendLine(string.Format("enable-audio = '{0}'", Settings.EnableAudio ? "Y" : "N"));
@@ -545,23 +554,211 @@ namespace ColiseuDesk.Services
 
                 File.WriteAllText(tomlPath, sb.ToString(), Encoding.UTF8);
 
-                // Atualiza peers.toml para refletir qualidade de vídeo, áudio, área de transferência e barra sempre visível
+                // Otimiza peers.toml global
                 var peersTomlPath = Path.Combine(_rustDeskConfigDir, "peers.toml");
                 if (File.Exists(peersTomlPath))
                 {
-                    var pContent = File.ReadAllText(peersTomlPath, Encoding.UTF8);
-                    pContent = Regex.Replace(pContent, @"image_quality\s*=\s*'[^']*'", string.Format("image_quality = '{0}'", Settings.ImageQuality));
-                    pContent = Regex.Replace(pContent, @"disable_audio\s*=\s*(true|false)", string.Format("disable_audio = {0}", Settings.EnableAudio ? "false" : "true"));
-                    pContent = Regex.Replace(pContent, @"disable_clipboard\s*=\s*(true|false)", string.Format("disable_clipboard = {0}", Settings.EnableClipboard ? "false" : "true"));
-                    pContent = Regex.Replace(pContent, @"collapse_toolbar\s*=\s*'[^']*'", "collapse_toolbar = 'N'");
-                    File.WriteAllText(peersTomlPath, pContent, Encoding.UTF8);
+                    OptimizePeerTomlFile(peersTomlPath);
+                }
+
+                // Otimiza todos os arquivos individuais em config\peers\<ID>.toml (onde o motor lê cada sessão)
+                var peersSubDir = Path.Combine(_rustDeskConfigDir, "peers");
+                Directory.CreateDirectory(peersSubDir);
+                foreach (var peerFile in Directory.GetFiles(peersSubDir, "*.toml"))
+                {
+                    OptimizePeerTomlFile(peerFile);
+                    SyncPeerHostnameToSavedClients(peerFile);
                 }
 
                 ApplyVisualBrandingToExtractedEngine();
+                BoostEngineProcessesPriority();
             }
             catch
             {
                 // Ignora se estiver em uso
+            }
+        }
+
+        private int GetTargetBitratePercent()
+        {
+            switch (Settings.ImageQuality)
+            {
+                case "low":
+                    return 45; // Modo Rápido: menor tamanho de pacote + 60 FPS para resposta instantânea do mouse
+                case "best":
+                    return 100; // Modo Alta Nitidez: 100% bitrate + 60 FPS
+                default:
+                    return 65; // Modo Balanceado: nitidez ideal + 60 FPS
+            }
+        }
+
+        public void EnsureOptimizedPeerConfig(string cleanId)
+        {
+            if (string.IsNullOrWhiteSpace(cleanId))
+                return;
+
+            try
+            {
+                var peersSubDir = Path.Combine(_rustDeskConfigDir, "peers");
+                Directory.CreateDirectory(peersSubDir);
+                var peerPath = Path.Combine(peersSubDir, cleanId + ".toml");
+
+                if (!File.Exists(peerPath))
+                {
+                    int bitrate = GetTargetBitratePercent();
+                    var sb = new StringBuilder();
+                    sb.AppendLine("view_style = 'original'");
+                    sb.AppendLine("scroll_style = 'scrollauto'");
+                    sb.AppendLine("image_quality = 'custom'");
+                    sb.AppendLine(string.Format("custom_image_quality = [{0}]", bitrate));
+                    sb.AppendLine("show_remote_cursor = false");
+                    sb.AppendLine("lock_after_session_end = false");
+                    sb.AppendLine("privacy_mode = false");
+                    sb.AppendLine("direct_failures = 0");
+                    sb.AppendLine(string.Format("disable_audio = {0}", Settings.EnableAudio ? "false" : "true"));
+                    sb.AppendLine(string.Format("disable_clipboard = {0}", Settings.EnableClipboard ? "false" : "true"));
+                    sb.AppendLine("enable-file-copy-paste = true");
+                    sb.AppendLine("keyboard_mode = 'map'");
+                    sb.AppendLine("view_only = false");
+                    sb.AppendLine();
+                    sb.AppendLine("[options]");
+                    sb.AppendLine("custom-fps = '60'");
+                    sb.AppendLine("codec-preference = 'h264'");
+                    sb.AppendLine("collapse_toolbar = 'N'");
+                    sb.AppendLine("show_monitors_toolbar = 'Y'");
+                    File.WriteAllText(peerPath, sb.ToString(), Encoding.UTF8);
+                }
+                else
+                {
+                    OptimizePeerTomlFile(peerPath);
+                }
+            }
+            catch
+            {
+                // Ignora falhas de acesso concorrente
+            }
+        }
+
+        private void OptimizePeerTomlFile(string filePath)
+        {
+            try
+            {
+                if (!File.Exists(filePath))
+                    return;
+
+                var pContent = File.ReadAllText(filePath, Encoding.UTF8);
+                int bitrate = GetTargetBitratePercent();
+
+                // 1. Usa image_quality = 'custom' + custom_image_quality = [bitrate] para destravar 60 FPS reais no motor
+                if (Regex.IsMatch(pContent, @"image_quality\s*=\s*'[^']*'"))
+                    pContent = Regex.Replace(pContent, @"image_quality\s*=\s*'[^']*'", "image_quality = 'custom'");
+
+                if (Regex.IsMatch(pContent, @"custom_image_quality\s*=\s*\[[^\]]*\]"))
+                    pContent = Regex.Replace(pContent, @"custom_image_quality\s*=\s*\[[^\]]*\]", string.Format("custom_image_quality = [{0}]", bitrate));
+
+                // 2. Zera direct_failures para nunca forçar Relay europeu (310ms) quando P2P Direto / UDP (1-20ms) está disponível
+                if (Regex.IsMatch(pContent, @"direct_failures\s*=\s*\d+"))
+                    pContent = Regex.Replace(pContent, @"direct_failures\s*=\s*\d+", "direct_failures = 0");
+
+                // 3. Cursor de hardware local instantâneo (0ms de atraso visual no ponteiro do mouse)
+                if (Regex.IsMatch(pContent, @"show_remote_cursor\s*=\s*(true|false)"))
+                    pContent = Regex.Replace(pContent, @"show_remote_cursor\s*=\s*(true|false)", "show_remote_cursor = false");
+
+                // 4. Sincroniza preferências de áudio e área de transferência
+                pContent = Regex.Replace(pContent, @"disable_audio\s*=\s*(true|false)", string.Format("disable_audio = {0}", Settings.EnableAudio ? "false" : "true"));
+                pContent = Regex.Replace(pContent, @"disable_clipboard\s*=\s*(true|false)", string.Format("disable_clipboard = {0}", Settings.EnableClipboard ? "false" : "true"));
+
+                // 5. Garante [options] com 60 FPS, H.264 via GPU e barra de monitores sempre expandida
+                if (!pContent.Contains("[options]"))
+                {
+                    pContent += "\r\n[options]\r\ncustom-fps = '60'\r\ncodec-preference = 'h264'\r\ncollapse_toolbar = 'N'\r\nshow_monitors_toolbar = 'Y'\r\n";
+                }
+                else
+                {
+                    if (Regex.IsMatch(pContent, @"custom-fps\s*=\s*'[^']*'") )
+                        pContent = Regex.Replace(pContent, @"custom-fps\s*=\s*'[^']*'", "custom-fps = '60'");
+                    else
+                        pContent = pContent.Replace("[options]", "[options]\r\ncustom-fps = '60'");
+
+                    if (Regex.IsMatch(pContent, @"codec-preference\s*=\s*'[^']*'") )
+                        pContent = Regex.Replace(pContent, @"codec-preference\s*=\s*'[^']*'", "codec-preference = 'h264'");
+                    else
+                        pContent = pContent.Replace("[options]", "[options]\r\ncodec-preference = 'h264'");
+
+                    if (Regex.IsMatch(pContent, @"collapse_toolbar\s*=\s*'[^']*'") )
+                        pContent = Regex.Replace(pContent, @"collapse_toolbar\s*=\s*'[^']*'", "collapse_toolbar = 'N'");
+                    else
+                        pContent = pContent.Replace("[options]", "[options]\r\ncollapse_toolbar = 'N'");
+
+                    if (Regex.IsMatch(pContent, @"show_monitors_toolbar\s*=\s*'[^']*'") )
+                        pContent = Regex.Replace(pContent, @"show_monitors_toolbar\s*=\s*'[^']*'", "show_monitors_toolbar = 'Y'");
+                    else
+                        pContent = pContent.Replace("[options]", "[options]\r\nshow_monitors_toolbar = 'Y'");
+                }
+
+                File.WriteAllText(filePath, pContent, Encoding.UTF8);
+            }
+            catch
+            {
+                // Ignora se arquivo estiver bloqueado
+            }
+        }
+
+        private void SyncPeerHostnameToSavedClients(string peerFilePath)
+        {
+            try
+            {
+                var rawId = Path.GetFileNameWithoutExtension(peerFilePath);
+                var formattedId = FormatId(rawId);
+                if (string.IsNullOrWhiteSpace(formattedId))
+                    return;
+
+                var existing = Settings.SavedClients.Find(c => c.Id == formattedId);
+                if (existing == null || (!existing.Name.StartsWith("Terminal ") && !existing.Name.StartsWith("Computador ")))
+                    return;
+
+                var content = File.ReadAllText(peerFilePath, Encoding.UTF8);
+                var hostMatch = Regex.Match(content, @"hostname\s*=\s*'([^']+)'");
+                var userMatch = Regex.Match(content, @"username\s*=\s*'([^']+)'");
+                if (hostMatch.Success && !string.IsNullOrWhiteSpace(hostMatch.Groups[1].Value))
+                {
+                    var hostName = hostMatch.Groups[1].Value.Trim().ToUpperInvariant();
+                    var userName = userMatch.Success ? userMatch.Groups[1].Value.Trim() : "";
+                    existing.Name = !string.IsNullOrWhiteSpace(userName)
+                        ? string.Format("{0} ({1})", hostName, userName)
+                        : hostName;
+                    PersistSettings();
+                }
+            }
+            catch
+            {
+                // Ignora
+            }
+        }
+
+        public void BoostEngineProcessesPriority()
+        {
+            try
+            {
+                foreach (var proc in Process.GetProcessesByName("rustdesk"))
+                {
+                    try
+                    {
+                        if (proc.PriorityClass == ProcessPriorityClass.Normal ||
+                            proc.PriorityClass == ProcessPriorityClass.BelowNormal)
+                        {
+                            proc.PriorityClass = ProcessPriorityClass.AboveNormal;
+                        }
+                    }
+                    catch
+                    {
+                        // Ignora processos elevados se não tiver permissão
+                    }
+                }
+            }
+            catch
+            {
+                // Ignora
             }
         }
 
@@ -1064,6 +1261,7 @@ namespace ColiseuDesk.Services
                 return false;
 
             ApplyVpsConfigToEngine();
+            EnsureOptimizedPeerConfig(cleanId);
             var engine = FindExtractedRuntimeExecutable() ?? FindEnginePackageExecutable();
             if (engine == null)
                 return false;
@@ -1096,6 +1294,7 @@ namespace ColiseuDesk.Services
                     {
                         await Task.Delay(500);
                         BrandOpenSessionWindows();
+                        BoostEngineProcessesPriority();
                     }
                 });
                 return true;
@@ -1113,6 +1312,7 @@ namespace ColiseuDesk.Services
                 return false;
 
             ApplyVpsConfigToEngine();
+            EnsureOptimizedPeerConfig(cleanId);
             var engine = FindExtractedRuntimeExecutable() ?? FindEnginePackageExecutable();
             if (engine == null)
                 return false;
@@ -1145,6 +1345,7 @@ namespace ColiseuDesk.Services
                     {
                         await Task.Delay(500);
                         BrandOpenSessionWindows();
+                        BoostEngineProcessesPriority();
                     }
                 });
 

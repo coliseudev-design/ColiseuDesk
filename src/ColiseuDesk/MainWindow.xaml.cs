@@ -181,13 +181,13 @@ namespace ColiseuDesk
             switch (_engineService.Settings.ImageQuality)
             {
                 case "balanced":
-                    qLabel = "🎨 Imagem: Balanceada";
+                    qLabel = "⚡ Imagem: Balanceada (60 FPS GPU)";
                     break;
                 case "low":
-                    qLabel = "🎨 Imagem: Rápida";
+                    qLabel = "🚀 Imagem: Rápida (Ultra 60 FPS)";
                     break;
                 default:
-                    qLabel = "🎨 Imagem: Alta";
+                    qLabel = "🎨 Imagem: Alta (60 FPS GPU)";
                     break;
             }
             BtnQualityToggle.Content = qLabel;
