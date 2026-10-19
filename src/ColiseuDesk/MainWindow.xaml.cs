@@ -116,6 +116,8 @@ namespace ColiseuDesk
             Top = workArea.Top + (workArea.Height - Height) / 2;
         }
 
+        private int _offlineTicks;
+
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             AdaptWindowToScreenWorkArea();
@@ -124,7 +126,7 @@ namespace ColiseuDesk
             UpdateToolbarAndSecurityControlsUI();
 
             var lanIp = _engineService.GetLocalLanIpAddress();
-            FooterInfoText.Text = string.Format("IP Local (LAN): {0}  •  ColiseuDesk v1.2 Pro • Coliseu Sistemas", lanIp);
+            FooterInfoText.Text = string.Format("IP Local (LAN): {0}  •  ColiseuDesk v1.3 Pro • Coliseu Sistemas", lanIp);
 
             LocalIdText.Text = "Sincronizando...";
             TempPasswordText.Text = "......";
@@ -165,11 +167,24 @@ namespace ColiseuDesk
 
             if (status.IsOnline)
             {
+                _offlineTicks = 0;
                 TopVpsBadge.Text = "Rede Coliseu Sistemas Online • Pronto para Receber ou Dar Suporte";
                 StatusDot.Fill = new SolidColorBrush(Color.FromRgb(27, 135, 63));
-                if (StatusTextBlock.Text.StartsWith("Conectando") || StatusTextBlock.Text.StartsWith("Preparando") || StatusTextBlock.Text.StartsWith("Baixando"))
+                if (StatusTextBlock.Text.StartsWith("Conectando") || StatusTextBlock.Text.StartsWith("Preparando") || StatusTextBlock.Text.StartsWith("Baixando") || StatusTextBlock.Text.StartsWith("Sincronizando"))
                 {
                     StatusTextBlock.Text = "Pronto para conexões (Registrado na Rede Coliseu Sistemas)";
+                }
+            }
+            else
+            {
+                _offlineTicks++;
+                if (_offlineTicks % 3 == 0)
+                {
+                    await Task.Run(() =>
+                    {
+                        _engineService.ApplyVpsConfigToEngine();
+                        _engineService.EnsureVpsOptionsSyncedInLivePipe(force: true);
+                    });
                 }
             }
         }

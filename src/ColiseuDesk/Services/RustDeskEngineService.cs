@@ -523,7 +523,6 @@ namespace ColiseuDesk.Services
             try
             {
                 Directory.CreateDirectory(_rustDeskConfigDir);
-                var tomlPath = Path.Combine(_rustDeskConfigDir, "RustDesk2.toml");
 
                 var host = Settings.RendezvousServer.Trim();
                 var key = Settings.PublicKey.Trim();
@@ -552,7 +551,29 @@ namespace ColiseuDesk.Services
                 sb.AppendLine(string.Format("enable-audio = '{0}'", Settings.EnableAudio ? "Y" : "N"));
                 sb.AppendLine(string.Format("enable-clipboard = '{0}'", (isFullAccess && Settings.EnableClipboard) ? "Y" : "N"));
 
-                File.WriteAllText(tomlPath, sb.ToString(), Encoding.UTF8);
+                var tomlContent = sb.ToString();
+
+                // Grava no perfil do usuário atual E nos perfis de Serviço do Windows (LocalService / SystemProfile)
+                var configDirs = new[]
+                {
+                    _rustDeskConfigDir,
+                    @"C:\Windows\ServiceProfiles\LocalService\AppData\Roaming\RustDesk\config",
+                    @"C:\Windows\System32\config\systemprofile\AppData\Roaming\RustDesk\config"
+                };
+
+                foreach (var dir in configDirs)
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(dir);
+                        File.WriteAllText(Path.Combine(dir, "RustDesk2.toml"), tomlContent, Encoding.UTF8);
+                        ConfirmVpsKeyInRustDeskToml(Path.Combine(dir, "RustDesk.toml"), host);
+                    }
+                    catch
+                    {
+                        // Ignora diretórios de serviço quando executado sem elevação Admin
+                    }
+                }
 
                 // Otimiza peers.toml global
                 var peersTomlPath = Path.Combine(_rustDeskConfigDir, "peers.toml");
@@ -570,12 +591,116 @@ namespace ColiseuDesk.Services
                     SyncPeerHostnameToSavedClients(peerFile);
                 }
 
+                // Injeta as opções via IPC ao vivo caso o processo --server já esteja rodando em memória
+                EnsureVpsOptionsSyncedInLivePipe(force: false);
+
                 ApplyVisualBrandingToExtractedEngine();
                 BoostEngineProcessesPriority();
             }
             catch
             {
                 // Ignora se estiver em uso
+            }
+        }
+
+        private static void ConfirmVpsKeyInRustDeskToml(string rustDeskTomlPath, string host)
+        {
+            try
+            {
+                if (!File.Exists(rustDeskTomlPath))
+                    return;
+
+                var content = File.ReadAllText(rustDeskTomlPath, Encoding.UTF8);
+                bool modified = false;
+
+                if (content.Contains("key_confirmed = false"))
+                {
+                    content = content.Replace("key_confirmed = false", "key_confirmed = true");
+                    modified = true;
+                }
+
+                var serverEntry = string.Format("\"{0}:21116\" = true", host);
+                if (!content.Contains(serverEntry))
+                {
+                    if (content.Contains("[keys_confirmed]"))
+                    {
+                        content = content.Replace("[keys_confirmed]", "[keys_confirmed]\r\n" + serverEntry);
+                    }
+                    else
+                    {
+                        content += string.Format("\r\n[keys_confirmed]\r\n{0}\r\n", serverEntry);
+                    }
+                    modified = true;
+                }
+
+                if (modified)
+                {
+                    File.WriteAllText(rustDeskTomlPath, content, Encoding.UTF8);
+                }
+            }
+            catch
+            {
+                // Ignora se em uso
+            }
+        }
+
+        public string BuildLiveOptionsJson()
+        {
+            var host = Settings.RendezvousServer.Trim();
+            var key = Settings.PublicKey.Trim();
+            bool isFullAccess = Settings.AccessProfile != "viewonly";
+
+            return string.Format(
+                "{{\"t\":\"Options\",\"c\":{{" +
+                "\"custom-rendezvous-server\":\"{0}\"," +
+                "\"relay-server\":\"{0}\"," +
+                "\"key\":\"{1}\"," +
+                "\"direct-server\":\"Y\"," +
+                "\"av1-test\":\"N\"," +
+                "\"enable-hwcodec\":\"Y\"," +
+                "\"enable-directx-capture\":\"Y\"," +
+                "\"codec-preference\":\"h264\"," +
+                "\"enable-keyboard\":\"{2}\"," +
+                "\"enable-file-transfer\":\"{2}\"," +
+                "\"enable-audio\":\"{3}\"," +
+                "\"enable-clipboard\":\"{4}\"" +
+                "}}}}",
+                host,
+                key,
+                isFullAccess ? "Y" : "N",
+                Settings.EnableAudio ? "Y" : "N",
+                (isFullAccess && Settings.EnableClipboard) ? "Y" : "N");
+        }
+
+        /// <summary>
+        /// Verifica se o processo --server em execução já está usando o servidor Coliseu (2.24.82.19) em memória.
+        /// Caso não esteja (ou se force=true), injeta as opções via Named Pipe para forçar reconexão imediata ao hbbs da VPS.
+        /// </summary>
+        public bool EnsureVpsOptionsSyncedInLivePipe(bool force = false)
+        {
+            try
+            {
+                var host = Settings.RendezvousServer.Trim();
+                if (string.IsNullOrEmpty(host))
+                    return false;
+
+                if (!force)
+                {
+                    var currentOpts = SendIpcQuery("{\"t\":\"Options\",\"c\":null}", 500);
+                    if (!string.IsNullOrEmpty(currentOpts) &&
+                        currentOpts.Contains(string.Format("\"custom-rendezvous-server\":\"{0}\"", host)) &&
+                        currentOpts.Contains("\"av1-test\":\"N\"") &&
+                        currentOpts.Contains("\"enable-hwcodec\":\"Y\""))
+                    {
+                        return true;
+                    }
+                }
+
+                return SendIpcCommand(BuildLiveOptionsJson(), 600);
+            }
+            catch
+            {
+                return false;
             }
         }
 
@@ -937,9 +1062,34 @@ namespace ColiseuDesk.Services
                     var live = QueryLiveStatusFromPipe();
                     if (!string.IsNullOrEmpty(live.Id))
                     {
+                        EnsureVpsOptionsSyncedInLivePipe(force: !live.IsOnline);
                         SendIpcCommand("{\"t\":\"Theme\",\"c\":\"light\"}");
-                        onProgress?.Invoke("Motor ColiseuDesk ativo e sincronizado.");
-                        return true;
+                        if (live.IsOnline)
+                        {
+                            onProgress?.Invoke("Motor ColiseuDesk ativo e sincronizado.");
+                            return true;
+                        }
+
+                        // Aguarda até 3.2s para ver se a injeção via IPC colocou o motor Online na VPS
+                        for (int w = 0; w < 8; w++)
+                        {
+                            Thread.Sleep(400);
+                            live = QueryLiveStatusFromPipe();
+                            if (live.IsOnline)
+                            {
+                                onProgress?.Invoke("Pronto para conexões (Rede Coliseu Sistemas Online)");
+                                return true;
+                            }
+                        }
+
+                        // Se continuou Offline (processo antigo travado sem a configuração da VPS), reinicia o motor limpo
+                        onProgress?.Invoke("Sincronizando motor com o servidor Coliseu Sistemas...");
+                        foreach (var proc in Process.GetProcessesByName("rustdesk"))
+                        {
+                            try { proc.Kill(); proc.WaitForExit(1500); } catch { }
+                        }
+                        Thread.Sleep(300);
+                        ApplyVpsConfigToEngine();
                     }
 
                     var runtimeExe = FindExtractedRuntimeExecutable();
@@ -952,7 +1102,7 @@ namespace ColiseuDesk.Services
                             var targetPkg = Path.Combine(_engineDir, "coliseu-engine.exe");
                             using (var wc = new WebClient())
                             {
-                                wc.Headers.Add("User-Agent", "ColiseuDesk/1.2");
+                                wc.Headers.Add("User-Agent", "ColiseuDesk/1.3");
                                 wc.DownloadFile(
                                     "https://github.com/rustdesk/rustdesk/releases/download/1.3.8/rustdesk-1.3.8-x86_64.exe",
                                     targetPkg);
@@ -980,7 +1130,8 @@ namespace ColiseuDesk.Services
                         }
                     }
 
-                    ApplyVisualBrandingToExtractedEngine();
+                    // Reaplica a configuração da VPS após a extração inicial e injeta via IPC
+                    ApplyVpsConfigToEngine();
 
                     if (runtimeExe != null)
                     {
@@ -999,18 +1150,26 @@ namespace ColiseuDesk.Services
                         }
                     }
 
-                    for (int i = 0; i < 20; i++)
+                    for (int i = 0; i < 25; i++)
                     {
                         var status = QueryLiveStatusFromPipe();
                         if (!string.IsNullOrEmpty(status.Id))
                         {
+                            if (i == 0 || i == 5 || i == 12)
+                            {
+                                EnsureVpsOptionsSyncedInLivePipe(force: true);
+                            }
                             SendIpcCommand("{\"t\":\"Theme\",\"c\":\"light\"}");
-                            onProgress?.Invoke("Pronto para conexões (Rede Coliseu Sistemas Online)");
-                            return true;
+                            if (status.IsOnline)
+                            {
+                                onProgress?.Invoke("Pronto para conexões (Rede Coliseu Sistemas Online)");
+                                return true;
+                            }
                         }
                         Thread.Sleep(400);
                     }
 
+                    EnsureVpsOptionsSyncedInLivePipe(force: true);
                     return true;
                 }
                 catch
